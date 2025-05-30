@@ -1,0 +1,12 @@
+.{
+    .name = .flux,
+    .version = "0.1.0",
+    .fingerprint = 0x7252313aee6437f9, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.14.1",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .dependencies = .{},
+}
