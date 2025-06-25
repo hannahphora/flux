@@ -1,0 +1,17 @@
+.{
+    .name = .flux,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.14.1",
+    .dependencies = .{
+        .vulkan_zig_generated = .{
+            .url = "https://pkg.machengine.org/vulkan-zig-generated/4134f910302a71731d8d32c91cfc1bc914e6d26b.tar.gz",
+            .hash = "12208333c8b3551908b66b8a421e7127bdf0c1806063836576283860eff99c99c521",
+            .lazy = true,
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
