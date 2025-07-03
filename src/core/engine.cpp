@@ -56,6 +56,8 @@ void engine::deinit(EngineState* engine) {
         engine->deletionStack.back()();
         engine->deletionStack.pop_back();
     }
+
+    log::flush();
 }
 
 void engine::run(EngineState* engine) {
