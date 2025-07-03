@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) !void {
     exe.addCSourceFiles(.{ .files = &.{
         "src/main.cpp",
         "src/core/engine.cpp",
-        "src/core/log/log.cpp",
+        "src/log/log.cpp",
         "src/renderer/renderer.cpp",
         "src/input/input.cpp",
     }, .flags = &.{

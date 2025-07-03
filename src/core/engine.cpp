@@ -1,5 +1,5 @@
 #include <core/engine.h>
-#include <core/log/log.h>
+#include <log/log.h>
 
 void engine::init(EngineState* engine) {
 

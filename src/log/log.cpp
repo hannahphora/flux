@@ -1,4 +1,4 @@
-#include <core/log/log.h>
+#include <log/log.h>
 
 #include <iostream>
 #include <format>

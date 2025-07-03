@@ -1,16 +1,18 @@
 #include <renderer/renderer.h>
-#include <core/log/log.h>
+#include <log/log.h>
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData) {
+    // TODO: replace this with log::unbuffered
+    fprintf(stdout, "validation layer: %s\n", pCallbackData->pMessage);
+    return VK_FALSE;
+}
 
 bool renderer::init(RendererState* state) {
     
-    vk::ApplicationInfo appInfo = {
-        "TestApplication",
-        VK_MAKE_API_VERSION(0, 1, 0, 0),
-        "No Engine",
-        VK_MAKE_API_VERSION(0, 1, 0, 0),
-        VK_API_VERSION_1_2
-    };
-
     state->initialised = true;
     return true;
 }
