@@ -1,7 +1,7 @@
 #include <log/log.h>
 
-#include <iostream>
-#include <format>
+#include <stdio.h>
+#include <cstring>
 
 static FILE* LOG_OUTPUT = stdout;
 static constexpr usize LOG_BUFFER_SIZE = 8 * 1024;
