@@ -4,42 +4,50 @@
 void engine::init(EngineState* engine) {
 
     // init glfw
-    log::unbuffered("initialising glfw");
+    log::unbuffered("engine: initialising glfw");
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    engine->window = glfwCreateWindow(800, 600, "Flux", nullptr, nullptr);
+    engine->window = glfwCreateWindow(800, 600, "Window", nullptr, nullptr);
     engine->deletionStack.emplace_back([engine]()->bool {
-        log::unbuffered("deinitialising glfw");
+        log::unbuffered("engine: deinitialising glfw");
         glfwDestroyWindow(engine->window);
         glfwTerminate();
         return true;
     });
 
+    glfwSetKeyCallback(engine->window, input::key_callback);
+
     // init renderer
-    log::unbuffered("initialising renderer");
+    log::unbuffered("engine: initialising renderer");
     engine->renderer = new RendererState { .engine = engine };
-    if (!renderer::init(engine->renderer))
+    if (!renderer::init(engine->renderer)) {
+        log::unbuffered("engine: failed to init renderer", LogLevel::ERROR);
         return;
+    }
     engine->deletionStack.emplace_back([engine]()->bool {
-        log::unbuffered("deinitialising renderer");
-        if (!renderer::deinit(engine->renderer))
-            return false;
+        log::unbuffered("engine: deinitialising renderer");
+        bool retval;
+        if (retval = !renderer::deinit(engine->renderer))
+            log::unbuffered("engine: failed to deinit renderer", LogLevel::WARNING);
         delete engine->renderer;
-        return true;
+        return retval ;
     });
 
     // init input
-    log::unbuffered("initialising input");
+    log::unbuffered("engine: initialising input");
     engine->input = new InputState { .engine = engine };
-    if (!input::init(engine->input))
+    if (!input::init(engine->input)) {
+        log::unbuffered("engine: failed to init input", LogLevel::ERROR);
         return;
+    }
     engine->deletionStack.emplace_back([engine]()->bool {
-        log::unbuffered("deinitialising input");
-        if (!input::deinit(engine->input))
-            return false;
+        log::unbuffered("engine: deinitialising input");
+        bool retval;
+        if (retval = !input::deinit(engine->input))
+            log::unbuffered("engine: failed to deinit input", LogLevel::WARNING);
         delete engine->input;
-        return true;
+        return retval;
     });
 }
 

@@ -1,8 +1,7 @@
 #pragma once
 #include <common.h>
 
-#include <vulkan/vulkan.h>
-#include <vulkan/vk_enum_string_helper.h>
+#include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
 
 #include <functional>
@@ -11,6 +10,10 @@
 namespace flux {
 //--------------------------------------------------------------------------------------------
 
+struct RendererConfig {
+    static constexpr bool enableValidationLayers = true;
+};
+
 struct RendererState {
     const EngineState* engine;
     bool initialised = false;
@@ -18,6 +21,7 @@ struct RendererState {
 
     // vulkan handles
     VkInstance vkInstance = nullptr;
+    VkDebugUtilsMessengerEXT vkDbgMessenger = nullptr;
 
     std::vector<std::function<bool()>> deletionStack = {};
 };

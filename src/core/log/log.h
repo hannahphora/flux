@@ -9,7 +9,7 @@ enum class LogLevel : u8 {
     INFO,
     WARNING,
     ERROR,
-    DEFAULT = VERBOSE,
+    DEFAULT = INFO,
 };
 
 namespace log {

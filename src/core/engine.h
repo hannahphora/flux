@@ -11,6 +11,10 @@
 namespace flux {
 //--------------------------------------------------------------------------------------------
 
+struct EngineConfig {
+    
+};
+
 struct EngineState {
     GLFWwindow* window = nullptr;
 

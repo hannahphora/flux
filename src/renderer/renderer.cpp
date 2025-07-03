@@ -1,16 +1,15 @@
 #include <renderer/renderer.h>
-#include <renderer/internal/initialisers.h>
+#include <core/log/log.h>
 
 bool renderer::init(RendererState* state) {
-    // create instance
-    if (!vki::instance(&state->vkInstance)) {
-        log::unbuffered("failed to create vulkan instance", LogLevel::ERROR);
-        return false;
-    }
-    state->deletionStack.emplace_back([state]()->bool {
-        vkDestroyInstance(state->vkInstance, nullptr);
-        return true;
-    });
+    
+    vk::ApplicationInfo appInfo = {
+        "TestApplication",
+        VK_MAKE_API_VERSION(0, 1, 0, 0),
+        "No Engine",
+        VK_MAKE_API_VERSION(0, 1, 0, 0),
+        VK_API_VERSION_1_2
+    };
 
     state->initialised = true;
     return true;
