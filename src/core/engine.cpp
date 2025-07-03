@@ -8,7 +8,7 @@ void engine::init(EngineState* engine) {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    engine->window = glfwCreateWindow(800, 600, "Window", nullptr, nullptr);
+    engine->window = glfwCreateWindow(800, 600, config::general::APP_NAME.c_str(), nullptr, nullptr);
     engine->deletionStack.emplace_back([engine]()->bool {
         log::unbuffered("engine: deinitialising glfw");
         glfwDestroyWindow(engine->window);

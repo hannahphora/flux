@@ -1,6 +1,12 @@
 #pragma once
 
 #include <cstdlib>
+#include <stdio.h>
+#include <cstring>
+
+#include <string>
+#include <vector>
+#include <functional>
 
 namespace flux { struct EngineState; };
 #ifndef USE_FLUX_NAMESPACE

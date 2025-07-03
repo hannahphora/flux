@@ -1,19 +1,14 @@
 #pragma once
 #include <common.h>
+#include <config.h>
+
 #include <renderer/renderer.h>
 #include <input/input.h>
 
 #include <GLFW/glfw3.h>
 
-#include <functional>
-#include <vector>
-
 namespace flux {
 //--------------------------------------------------------------------------------------------
-
-struct EngineConfig {
-    
-};
 
 struct EngineState {
     GLFWwindow* window = nullptr;

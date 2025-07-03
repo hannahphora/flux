@@ -13,6 +13,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 
 bool renderer::init(RendererState* state) {
     
+    auto appInfo = vk::ApplicationInfo {
+        
+    };
+
     state->initialised = true;
     return true;
 }

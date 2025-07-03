@@ -1,11 +1,6 @@
 #include <log/log.h>
 
-#include <stdio.h>
-#include <cstring>
-
-static FILE* LOG_OUTPUT = stdout;
-static constexpr usize LOG_BUFFER_SIZE = 8 * 1024;
-static char logBuffer[LOG_BUFFER_SIZE] = {0};
+static char logBuffer[config::log::BUFFER_SIZE] = {0};
 static usize logBufferIndex = 0;
 
 static const char* LogLevelStrings[] = {
@@ -21,11 +16,11 @@ void log::buffered(const char* msg, LogLevel lvl) {
 }
 
 void log::unbuffered(const char* msg, LogLevel lvl) {
-    fprintf(LOG_OUTPUT, "[%s] %s\n", LogLevelStrings[(usize)lvl], msg);
+    fprintf(config::log::OUTPUT_FILE, "[%s] %s\n", LogLevelStrings[(usize)lvl], msg);
 }
 
 void log::flush() {
-    fwrite(logBuffer, sizeof(char), logBufferIndex, LOG_OUTPUT);
+    fwrite(logBuffer, sizeof(char), logBufferIndex, config::log::OUTPUT_FILE);
     memset(logBuffer, 0, logBufferIndex);
     logBufferIndex = 0;
 }
