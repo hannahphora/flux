@@ -14,8 +14,8 @@ struct RendererState {
     usize frameNumber = 0;
 
     // vulkan handles
-    VkInstance vkInstance = nullptr;
-    VkDebugUtilsMessengerEXT vkDbgMessenger = nullptr;
+    vk::Instance instance = nullptr;
+    vk::DebugUtilsMessengerEXT dbgMessenger = nullptr;
 
     std::vector<std::function<bool()>> deletionStack = {};
 };
