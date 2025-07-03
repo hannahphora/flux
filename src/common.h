@@ -9,9 +9,7 @@
 #include <functional>
 
 namespace flux { struct EngineState; };
-#ifndef USE_FLUX_NAMESPACE
 using namespace flux;
-#endif // USE_FLUX_NAMESPACE
 
 // TYPES
 using usize = unsigned long long;

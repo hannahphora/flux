@@ -95,7 +95,6 @@ fn compile_shaders(b: *std.Build, exe: *std.Build.Step.Compile) void {
                     source,
                 });
                 exe.step.dependOn(&shader_comp.step);
-                b.installBinFile(outpath, outpath);
             }
         }
     }

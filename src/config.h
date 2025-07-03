@@ -10,7 +10,7 @@ namespace general {
 };
 
 namespace log {
-    static FILE* OUTPUT_FILE = stdout;
+    static FILE* OUTPUT_FILE = stderr;
     static constexpr usize BUFFER_SIZE = 8 * 1024;
 };
 
