@@ -16,8 +16,6 @@ void engine::init(EngineState* engine) {
         return true;
     });
 
-    glfwSetKeyCallback(engine->window, input::key_callback);
-
     // init renderer
     log::unbuffered("engine: initialising renderer");
     engine->renderer = new RendererState { .engine = engine };
@@ -63,5 +61,8 @@ void engine::deinit(EngineState* engine) {
 void engine::run(EngineState* engine) {
     while(!glfwWindowShouldClose(engine->window)) {
         glfwPollEvents();
+
+        if (glfwGetKey(engine->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
 }
