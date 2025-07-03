@@ -16,13 +16,13 @@ struct EngineState {
     RendererState* renderer = nullptr;
     InputState* input = nullptr;
 
-    std::vector<std::function<bool()>> deletionStack = {};
+    std::vector<std::function<void()>> deletionStack = {};
 };
 
 namespace engine {
-    void init(EngineState* engine);
-    void deinit(EngineState* engine);
-    void run(EngineState* engine);
+    void init(EngineState* state);
+    void deinit(EngineState* state);
+    void run(EngineState* state);
 };
 
 //--------------------------------------------------------------------------------------------

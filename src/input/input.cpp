@@ -5,7 +5,6 @@ bool input::init(InputState* state) {
     return true;
 }
 
-bool input::deinit(InputState* state) {
+void input::deinit(InputState* state) {
     state->initialised = false;
-    return true;
 }

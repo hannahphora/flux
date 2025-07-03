@@ -17,12 +17,12 @@ struct RendererState {
     VkInstance vkInstance = nullptr;
     VkDebugUtilsMessengerEXT vkDbgMessenger = nullptr;
 
-    std::vector<std::function<bool()>> deletionStack = {};
+    std::vector<std::function<void()>> deletionStack = {};
 };
 
 namespace renderer {
     bool init(RendererState* state);
-    bool deinit(RendererState* state);
+    void deinit(RendererState* state);
 };
 
 //--------------------------------------------------------------------------------------------

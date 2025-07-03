@@ -29,8 +29,8 @@ pub fn build(b: *std.Build) !void {
     exe.linkSystemLibrary(vk_lib_name);
     const env_map = try std.process.getEnvMap(b.allocator);
     if (env_map.get("VK_SDK_PATH")) |path| {
-        exe.addLibraryPath(.{ .cwd_relative = std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) catch @panic("OOM") });
-        exe.addIncludePath(.{ .cwd_relative = std.fmt.allocPrint(b.allocator, "{s}/include", .{path}) catch @panic("OOM") });
+        exe.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
+        exe.addIncludePath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/include", .{path}) });
     }
 
     // linking
@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) !void {
     exe.linkSystemLibrary("glfw3");
 
     // includes
-    exe.addIncludePath(b.path("src/"));
+    exe.addIncludePath(b.path("src"));
     exe.addIncludePath(b.path("deps/include"));
 
     try compile_shaders(b, exe);
@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) !void {
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
-    const run_step = b.step("run", "Run the engine");
+    const run_step = b.step("run", "Run the program");
     run_step.dependOn(&run_cmd.step);
 }
 

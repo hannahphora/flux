@@ -13,6 +13,10 @@ static const char* LogLevelStrings[] = {
 void log::buffered(const char* msg, LogLevel lvl) {
     sprintf(logBuffer + logBufferIndex, "[%s] %s\n", LogLevelStrings[(usize)lvl], msg);
     logBufferIndex += strlen(logBuffer + logBufferIndex);
+
+    // flush log if within 128 characters of buffer end
+    if (logBufferIndex >= config::log::BUFFER_SIZE - 128)
+        flush();
 }
 
 void log::unbuffered(const char* msg, LogLevel lvl) {

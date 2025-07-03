@@ -11,7 +11,7 @@ namespace general {
 
 namespace log {
     static FILE* OUTPUT_FILE = stderr;
-    static constexpr usize BUFFER_SIZE = 8 * 1024;
+    static constexpr usize BUFFER_SIZE = 8 * 1024 * 1024; // 8mb
 };
 
 namespace renderer {

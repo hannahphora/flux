@@ -10,5 +10,5 @@ i32 main(i32 argc, char** argv) {
     engine::deinit(engine);
     delete engine;
 
-    return 0;
+    return EXIT_SUCCESS;
 }

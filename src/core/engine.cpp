@@ -1,70 +1,64 @@
 #include <core/engine.h>
 #include <log/log.h>
 
-void engine::init(EngineState* engine) {
+void engine::init(EngineState* state) {
 
     // init glfw
-    log::unbuffered("engine: initialising glfw");
+    log::buffered("engine: initialising glfw");
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    engine->window = glfwCreateWindow(800, 600, config::general::APP_NAME.c_str(), nullptr, nullptr);
-    engine->deletionStack.emplace_back([engine]()->bool {
-        log::unbuffered("engine: deinitialising glfw");
-        glfwDestroyWindow(engine->window);
+    state->window = glfwCreateWindow(800, 600, config::general::APP_NAME.c_str(), nullptr, nullptr);
+    state->deletionStack.emplace_back([state]() {
+        log::buffered("engine: deinitialising glfw");
+        glfwDestroyWindow(state->window);
         glfwTerminate();
-        return true;
     });
 
     // init renderer
-    log::unbuffered("engine: initialising renderer");
-    engine->renderer = new RendererState { .engine = engine };
-    if (!renderer::init(engine->renderer)) {
+    log::buffered("engine: initialising renderer");
+    state->renderer = new RendererState { .engine = state };
+    if (!renderer::init(state->renderer)) {
         log::unbuffered("engine: failed to init renderer", LogLevel::ERROR);
-        return;
+        std::exit(EXIT_FAILURE);
     }
-    engine->deletionStack.emplace_back([engine]()->bool {
-        log::unbuffered("engine: deinitialising renderer");
-        bool retval;
-        if ((retval = !renderer::deinit(engine->renderer)))
-            log::unbuffered("engine: failed to deinit renderer", LogLevel::WARNING);
-        delete engine->renderer;
-        return retval ;
+    state->deletionStack.emplace_back([state]() {
+        log::buffered("engine: deinitialising renderer");
+        renderer::deinit(state->renderer);
+        delete state->renderer;
     });
 
     // init input
-    log::unbuffered("engine: initialising input");
-    engine->input = new InputState { .engine = engine };
-    if (!input::init(engine->input)) {
+    log::buffered("engine: initialising input");
+    state->input = new InputState { .engine = state };
+    if (!input::init(state->input)) {
         log::unbuffered("engine: failed to init input", LogLevel::ERROR);
-        return;
+        std::exit(EXIT_FAILURE);
     }
-    engine->deletionStack.emplace_back([engine]()->bool {
-        log::unbuffered("engine: deinitialising input");
-        bool retval;
-        if ((retval = !input::deinit(engine->input)))
-            log::unbuffered("engine: failed to deinit input", LogLevel::WARNING);
-        delete engine->input;
-        return retval;
+    state->deletionStack.emplace_back([state]() {
+        log::buffered("engine: deinitialising input");
+        input::deinit(state->input);
+        delete state->input;
     });
+
+    log::flush();
 }
 
-void engine::deinit(EngineState* engine) {
+void engine::deinit(EngineState* state) {
     // run callbacks in deletion stack
-    while (!engine->deletionStack.empty()) {
-        // TODO: handle errors returned from callbacks here
-        engine->deletionStack.back()();
-        engine->deletionStack.pop_back();
+    while (!state->deletionStack.empty()) {
+        state->deletionStack.back()();
+        state->deletionStack.pop_back();
     }
 
     log::flush();
 }
 
-void engine::run(EngineState* engine) {
-    while(!glfwWindowShouldClose(engine->window)) {
+void engine::run(EngineState* state) {
+    while(!glfwWindowShouldClose(state->window)) {
         glfwPollEvents();
 
-        if (glfwGetKey(engine->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(engine->window, GLFW_TRUE);
+        if (glfwGetKey(state->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(state->window, GLFW_TRUE);
     }
 }

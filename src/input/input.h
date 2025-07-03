@@ -6,10 +6,6 @@
 namespace flux {
 //--------------------------------------------------------------------------------------------
 
-struct InputConfig {
-
-};
-
 struct InputState {
     const EngineState* engine;
     bool initialised = false;
@@ -17,7 +13,7 @@ struct InputState {
 
 namespace input {
     bool init(InputState* state);
-    bool deinit(InputState* state);
+    void deinit(InputState* state);
 };
 
 //--------------------------------------------------------------------------------------------
