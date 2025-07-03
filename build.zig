@@ -85,8 +85,9 @@ fn compile_shaders(b: *std.Build, exe: *std.Build.Step.Compile) !void {
             const output = shader_compilation.addOutputFileArg(outpath);
             shader_compilation.addFileArg(b.path(source));
 
-            exe.step.dependOn(&shader_compilation.step);
-            exe.step.dependOn(&b.addInstallBinFile(output, outpath).step);
+            const copy_spv = b.addInstallBinFile(output, outpath);
+            copy_spv.step.dependOn(&shader_compilation.step);
+            exe.step.dependOn(&copy_spv.step);
         }
     }
 }
