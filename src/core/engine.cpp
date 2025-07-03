@@ -26,7 +26,7 @@ void engine::init(EngineState* engine) {
     engine->deletionStack.emplace_back([engine]()->bool {
         log::unbuffered("engine: deinitialising renderer");
         bool retval;
-        if (retval = !renderer::deinit(engine->renderer))
+        if ((retval = !renderer::deinit(engine->renderer)))
             log::unbuffered("engine: failed to deinit renderer", LogLevel::WARNING);
         delete engine->renderer;
         return retval ;
@@ -42,7 +42,7 @@ void engine::init(EngineState* engine) {
     engine->deletionStack.emplace_back([engine]()->bool {
         log::unbuffered("engine: deinitialising input");
         bool retval;
-        if (retval = !input::deinit(engine->input))
+        if ((retval = !input::deinit(engine->input)))
             log::unbuffered("engine: failed to deinit input", LogLevel::WARNING);
         delete engine->input;
         return retval;
@@ -63,6 +63,6 @@ void engine::run(EngineState* engine) {
         glfwPollEvents();
 
         if (glfwGetKey(engine->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
+            glfwSetWindowShouldClose(engine->window, GLFW_TRUE);
     }
 }
