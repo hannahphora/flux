@@ -1,5 +1,15 @@
 #pragma once
 
+namespace flux { struct EngineState; };
+
+#ifndef USE_FLUX_NAMESPACE
+using namespace flux;
+#endif // USE_FLUX_NAMESPACE
+
+// INCLUDES
+#include <cstdlib>
+
+// TYPEDEFS
 using usize = unsigned long long;
 
 using i8 = signed char;
