@@ -21,9 +21,9 @@ struct EngineState {
 };
 
 namespace engine {
-    extern "C" void init(EngineState* state);
-    extern "C" void deinit(EngineState* state);
-    extern "C" void process_frame(EngineState* state);
+    extern "C" __declspec(dllexport) void init(EngineState* state);
+    extern "C" __declspec(dllexport) void deinit(EngineState* state);
+    extern "C" __declspec(dllexport) void update(EngineState* state);
 };
 
 //--------------------------------------------------------------------------------------------

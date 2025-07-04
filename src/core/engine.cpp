@@ -5,6 +5,8 @@
 #include <core/subsystems/log/log.hpp>
 #include <core/subsystems/log/log.cpp>
 
+#include <format>
+
 void engine::init(EngineState* state) {
 
     // init glfw
@@ -58,11 +60,9 @@ void engine::deinit(EngineState* state) {
     log::flush();
 }
 
-void engine::process_frame(EngineState* state) {
+void engine::update(EngineState* state) {
     glfwPollEvents();
 
-    if (glfwGetKey(state->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(state->window, GLFW_TRUE);
-
-    state->running = !glfwWindowShouldClose(state->window);
+    if (glfwWindowShouldClose(state->window))
+        state->running = false;
 }
