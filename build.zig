@@ -23,76 +23,60 @@ pub fn build(b: *std.Build) !void {
     const build_mode = b.option(BuildMode, "build_mode", "build mode (default = debug)") orelse .debug;
     options.addOption(BuildMode, "build_mode", build_mode);
 
-    const optimize: std.builtin.OptimizeMode = if (build_mode == .debug) .Debug else .ReleaseFast;
     const flags = if (build_mode == .debug) &debug_flags else &release_flags;
 
-    const runner = b.addExecutable(.{
-        .name = "runner",
+    const mod = b.createModule(.{
         .target = target,
-        .optimize = optimize,
+        .optimize = if (build_mode == .debug) .Debug else .ReleaseFast,
+        .link_libcpp = true,
+    });
+
+    const runner = b.addExecutable(.{
+        .root_module = mod,
+        .name = "runner",
         .use_lld = true,
         .use_llvm = true,
     });
     runner.addCSourceFile(.{ .file = b.path("src/main.cpp"), .flags = flags });
 
-    //const flux = b.addSharedLibrary(.{
-    //    .name = "flux",
-    //    .target = target,
-    //    .optimize = optimize,
-    //    .use_lld = true,
-    //    .use_llvm = true,
-    //});
     const flux = b.addLibrary(.{
-        .root_module = null,
+        .root_module = mod,
         .name = "flux",
         .linkage = .dynamic,
         .use_lld = true,
         .use_llvm = true,
     });
-    flux.addCSourceFiles(.{ .files = &.{
-        "core/engine.cpp",
-        if (config.enabled_systems.renderer) "renderer/renderer.cpp" else "core/engine.cpp",
-        if (config.enabled_systems.input) "input/input.cpp" else "core/engine.cpp",
-        if (config.enabled_systems.ui) "ui/ui.cpp" else "core/engine.cpp",
-        if (config.enabled_systems.audio) "audio/audio.cpp" else "core/engine.cpp",
-        if (config.enabled_systems.physics) "physics/physics.cpp" else "core/engine.cpp",
-        if (config.enabled_systems.animation) "animation/animation.cpp" else "core/engine.cpp",
-    }, .flags = flags, .root = b.path("src") });
+    flux.addCSourceFile(.{ .file = b.path("src/core/engine.cpp"), .flags = flags });
+    if (config.enabled_systems.renderer) flux.addCSourceFile(.{ .file = b.path("src/renderer/renderer.cpp"), .flags = flags });
+    if (config.enabled_systems.input) flux.addCSourceFile(.{ .file = b.path("src/input/input.cpp"), .flags = flags });
+    if (config.enabled_systems.ui) flux.addCSourceFile(.{ .file = b.path("src/ui/ui.cpp"), .flags = flags });
+    if (config.enabled_systems.audio) flux.addCSourceFile(.{ .file = b.path("src/audio/audio.cpp"), .flags = flags });
+    if (config.enabled_systems.physics) flux.addCSourceFile(.{ .file = b.path("src/physics/physics.cpp"), .flags = flags });
+    if (config.enabled_systems.animation) flux.addCSourceFile(.{ .file = b.path("src/animation/animation.cpp"), .flags = flags });
 
     // vulkan
     var env_map = try std.process.getEnvMap(b.allocator);
     defer env_map.deinit();
-    if (env_map.get("VK_SDK_PATH")) |path| {
-        runner.linkSystemLibrary(if (target.result.os.tag == .windows) "vulkan-1" else "vulkan");
-        runner.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
-        flux.addIncludePath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/include", .{path}) });
-    }
+    const path = env_map.get("VK_SDK_PATH") orelse @panic("failed to get from envmap");
 
-    // libcpp
-    runner.linkLibCpp();
-    flux.linkLibCpp();
-
-    // glfw
-    flux.addLibraryPath(b.path("deps/lib"));
-    flux.linkSystemLibrary("glfw3");
-
-    // includes
-    flux.addIncludePath(b.path("src"));
-    runner.addIncludePath(b.path("src"));
-    flux.addIncludePath(b.path("deps/include"));
-    runner.addIncludePath(b.path("deps/include"));
+    mod.linkSystemLibrary(if (target.result.os.tag == .windows) "vulkan-1" else "vulkan", .{});
+    mod.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
+    mod.addIncludePath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/include", .{path}) });
+    mod.addLibraryPath(b.path("deps/lib"));
+    mod.linkSystemLibrary("glfw3", .{});
+    mod.addIncludePath(b.path("src"));
+    mod.addIncludePath(b.path("deps/include"));
 
     try compile_shaders(b);
 
     b.installArtifact(flux);
-    runner.linkLibrary(flux);
     b.installArtifact(runner);
 
     if (target.result.os.tag == .windows) {
         b.installBinFile("deps/lib/glfw3.dll", "glfw3.dll");
     } else {
         b.installBinFile("deps/lib/glfw3.so", "glfw3.so.0");
-        runner.root_module.addRPathSpecial("$ORIGIN");
+        mod.addRPathSpecial("$ORIGIN");
     }
 
     // add run option
