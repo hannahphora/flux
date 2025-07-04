@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) !void {
     const build_mode = b.option(BuildMode, "build_mode", "build mode (default = debug)") orelse .debug;
     options.addOption(BuildMode, "build_mode", build_mode);
 
-    const optimize = if (build_mode == .debug) std.builtin.OptimizeMode.Debug else std.builtin.OptimizeMode.ReleaseFast;
+    const optimize: std.builtin.OptimizeMode = if (build_mode == .debug) .Debug else .ReleaseFast;
     const flags = if (build_mode == .debug) &debug_flags else &release_flags;
 
     const runner = b.addExecutable(.{
