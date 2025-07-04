@@ -35,10 +35,17 @@ pub fn build(b: *std.Build) !void {
     });
     runner.addCSourceFile(.{ .file = b.path("src/main.cpp"), .flags = flags });
 
-    const flux = b.addSharedLibrary(.{
+    //const flux = b.addSharedLibrary(.{
+    //    .name = "flux",
+    //    .target = target,
+    //    .optimize = optimize,
+    //    .use_lld = true,
+    //    .use_llvm = true,
+    //});
+    const flux = b.addLibrary(.{
+        .root_module = null,
         .name = "flux",
-        .target = target,
-        .optimize = optimize,
+        .linkage = .dynamic,
         .use_lld = true,
         .use_llvm = true,
     });
