@@ -1,5 +1,9 @@
-#include <core/engine.h>
-#include <log/log.h>
+#include <core/engine.hpp>
+#include <renderer/renderer.hpp>
+#include <input/input.hpp>
+
+#include <core/subsystems/log/log.hpp>
+#include <core/subsystems/log/log.cpp>
 
 void engine::init(EngineState* state) {
 
@@ -54,11 +58,11 @@ void engine::deinit(EngineState* state) {
     log::flush();
 }
 
-void engine::run(EngineState* state) {
-    while(!glfwWindowShouldClose(state->window)) {
-        glfwPollEvents();
+void engine::process_frame(EngineState* state) {
+    glfwPollEvents();
 
-        if (glfwGetKey(state->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(state->window, GLFW_TRUE);
-    }
+    if (glfwGetKey(state->window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(state->window, GLFW_TRUE);
+
+    state->running = !glfwWindowShouldClose(state->window);
 }

@@ -1,6 +1,10 @@
 #pragma once
-#include <common.h>
-#include <config.h>
+#include <common/types.hpp>
+#include <common/config.hpp>
+
+#include <cstdlib>
+#include <stdio.h>
+#include <cstring>
 
 namespace flux {
 //--------------------------------------------------------------------------------------------

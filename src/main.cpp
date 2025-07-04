@@ -1,14 +1,17 @@
-#include <common.h>
-#include <core/engine.h>
+#include <core/engine.hpp>
 
-i32 main(i32 argc, char** argv) {
-    // TODO: parse cmd line args
+int main() {
+    EngineState* state = new EngineState;
+    engine::init(state);
 
-    auto engine = new EngineState;
-    engine::init(engine);
-    engine::run(engine);
-    engine::deinit(engine);
-    delete engine;
+    state->running = true;
+    while (state->running) {
+        engine::process_frame(state);
 
+
+    }
+
+    engine::deinit(state);
+    delete state;
     return EXIT_SUCCESS;
 }

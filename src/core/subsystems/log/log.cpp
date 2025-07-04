@@ -1,4 +1,4 @@
-#include <log/log.h>
+#include <core/subsystems/log/log.hpp>
 
 static char logBuffer[config::log::BUFFER_SIZE] = {0};
 static usize logBufferIndex = 0;

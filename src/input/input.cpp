@@ -1,4 +1,4 @@
-#include <input/input.h>
+#include <input/input.hpp>
 
 bool input::init(InputState* state) {
     state->initialised = true;

@@ -1,5 +1,5 @@
-#include <renderer/renderer.h>
-#include <log/log.h>
+#include <renderer/renderer.hpp>
+#include <core/subsystems/log/log.hpp>
 
 bool renderer::init(RendererState* state) {
     

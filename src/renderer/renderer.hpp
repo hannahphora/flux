@@ -1,9 +1,13 @@
 #pragma once
-#include <common.h>
-#include <config.h>
+#include <common/types.hpp>
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+
+#include <cstdlib>
+#include <string>
+#include <vector>
+#include <functional>
 
 namespace flux {
 //--------------------------------------------------------------------------------------------

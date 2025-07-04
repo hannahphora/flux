@@ -1,0 +1,19 @@
+ - the engine is split up into systems
+ - each system is a single translation unit
+ - all systems are compiled to a single dll, to allow hot reloading
+ - 
+
+runtime systems:
+ - profiling
+ - logging
+
+offline systems:
+ - resource preprocessing
+ - 
+
+development systems:
+ - unit tests
+
+Hot reloading
+from Timothy Farrar:
+ - "For development the code is compiled as a library, a small loader program makes a copy of the library, and loads the library copy to run the program. The program allocates all data at startup, and uses one single pointer to reference any data. I use nothing global except read only data. While the program is running the original library can be recompiled. Then in one key press, the program returns to the loader and returns that single data pointer. The loader makes a copy of the new library, loads the copy, and passes in the data pointer to the new code. Then the engine continues where it left off."
