@@ -5,44 +5,42 @@
 #include <core/subsystems/log/log.hpp>
 #include <core/subsystems/log/log.cpp>
 
-#include <format>
-
 void engine::init(EngineState* state) {
 
     // init glfw
-    log::buffered("engine: initialising glfw");
+    log::buffered("initialising glfw");
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     state->window = glfwCreateWindow(800, 600, config::general::APP_NAME.c_str(), nullptr, nullptr);
     state->deletionStack.emplace_back([state]() {
-        log::buffered("engine: deinitialising glfw");
+        log::buffered("deinitialising glfw");
         glfwDestroyWindow(state->window);
         glfwTerminate();
     });
 
     // init renderer
-    log::buffered("engine: initialising renderer");
+    log::buffered("initialising renderer");
     state->renderer = new RendererState { .engine = state };
     if (!renderer::init(state->renderer)) {
-        log::unbuffered("engine: failed to init renderer", LogLevel::ERROR);
+        log::unbuffered("failed to init renderer", LogLevel::ERROR);
         std::exit(EXIT_FAILURE);
     }
     state->deletionStack.emplace_back([state]() {
-        log::buffered("engine: deinitialising renderer");
+        log::buffered("deinitialising renderer");
         renderer::deinit(state->renderer);
         delete state->renderer;
     });
 
     // init input
-    log::buffered("engine: initialising input");
+    log::buffered("initialising input");
     state->input = new InputState { .engine = state };
     if (!input::init(state->input)) {
-        log::unbuffered("engine: failed to init input", LogLevel::ERROR);
+        log::unbuffered("failed to init input", LogLevel::ERROR);
         std::exit(EXIT_FAILURE);
     }
     state->deletionStack.emplace_back([state]() {
-        log::buffered("engine: deinitialising input");
+        log::buffered("deinitialising input");
         input::deinit(state->input);
         delete state->input;
     });

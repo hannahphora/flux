@@ -10,11 +10,10 @@ namespace flux {
 //--------------------------------------------------------------------------------------------
 
 enum class LogLevel : u8 {
-    VERBOSE,
-    INFO,
+    DEBUG,
     WARNING,
     ERROR,
-    DEFAULT = INFO,
+    DEFAULT = DEBUG,
 };
 
 namespace log {

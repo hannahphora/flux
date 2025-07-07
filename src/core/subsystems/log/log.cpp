@@ -4,8 +4,7 @@ static char logBuffer[config::log::BUFFER_SIZE] = {0};
 static usize logBufferIndex = 0;
 
 static const char* LogLevelStrings[] = {
-    "VERBOSE",
-    "INFO",
+    "DEBUG",
     "WARNING",
     "ERROR",
 };
@@ -24,7 +23,7 @@ void log::unbuffered(const char* msg, LogLevel lvl) {
 }
 
 void log::flush() {
-    fwrite(logBuffer, sizeof(char), logBufferIndex, config::log::OUTPUT_FILE);
+    fwrite(logBuffer, 1, logBufferIndex, config::log::OUTPUT_FILE);
     memset(logBuffer, 0, logBufferIndex);
     logBufferIndex = 0;
 }

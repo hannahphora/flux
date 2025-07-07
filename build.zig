@@ -1,8 +1,6 @@
 const std = @import("std");
 
-const version = std.SemanticVersion{ .major = 0, .minor = 0, .patch = 0 };
-
-const enabled_systems: packed struct {
+const systems: packed struct {
     renderer: bool = true,
     input: bool = true,
     ui: bool = false,
@@ -11,14 +9,7 @@ const enabled_systems: packed struct {
     animation: bool = false,
 } = .{};
 
-const debug_flags = .{
-    "-pedantic-errors",
-    "-Wc++11-extensions",
-    "-std=c++20",
-    "-g",
-};
-
-const release_flags = .{
+const flags = .{
     "-pedantic-errors",
     "-Wc++11-extensions",
     "-std=c++20",
@@ -29,46 +20,45 @@ const BuildMode = enum { debug, release };
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-    const build_mode = b.option(BuildMode, "build_mode", "build mode (default = debug)") orelse .debug;
-    const flags = if (build_mode == .debug) &debug_flags else &release_flags;
+    const mode = b.option(BuildMode, "mode", "select build mode (default = debug)") orelse .debug;
 
     const options = b.addOptions();
-    options.addOption(BuildMode, "build_mode", build_mode);
+    options.addOption(BuildMode, "mode", mode);
 
     const flux = b.createModule(.{
         .target = target,
-        .optimize = if (build_mode == .debug) .Debug else .ReleaseFast,
+        .optimize = if (mode == .debug) .Debug else .ReleaseFast,
         .link_libcpp = true,
     });
 
-    const exe = b.addExecutable(.{
-        .root_module = flux,
-        .name = "runner",
-        .use_lld = true,
-        .use_llvm = true,
-    });
-    exe.addCSourceFile(.{ .file = b.path("src/main.cpp"), .flags = flags });
+    const host = b.addExecutable(.{ .root_module = flux, .name = "host" });
+    host.addCSourceFile(.{ .file = b.path("src/host.cpp"), .flags = &flags });
 
-    const lib = b.addLibrary(.{
+    const engine = b.addLibrary(.{
         .root_module = flux,
         .name = "flux",
         .linkage = .dynamic,
-        .use_lld = true,
-        .use_llvm = true,
-        .version = version,
     });
-    lib.addCSourceFile(.{ .file = b.path("src/core/engine.cpp"), .flags = flags });
-    if (enabled_systems.renderer) lib.addCSourceFile(.{ .file = b.path("src/renderer/renderer.cpp"), .flags = flags });
-    if (enabled_systems.input) lib.addCSourceFile(.{ .file = b.path("src/input/input.cpp"), .flags = flags });
-    if (enabled_systems.ui) lib.addCSourceFile(.{ .file = b.path("src/ui/ui.cpp"), .flags = flags });
-    if (enabled_systems.audio) lib.addCSourceFile(.{ .file = b.path("src/audio/audio.cpp"), .flags = flags });
-    if (enabled_systems.physics) lib.addCSourceFile(.{ .file = b.path("src/physics/physics.cpp"), .flags = flags });
-    if (enabled_systems.animation) lib.addCSourceFile(.{ .file = b.path("src/animation/animation.cpp"), .flags = flags });
 
-    // vulkan
+    var src_files = try std.ArrayList([]const u8).initCapacity(b.allocator, @bitSizeOf(@TypeOf(systems)) + 1);
+    defer src_files.deinit();
+    src_files.appendAssumeCapacity("core/engine.cpp");
+    if (systems.renderer) src_files.appendAssumeCapacity("renderer/renderer.cpp");
+    if (systems.input) src_files.appendAssumeCapacity("input/input.cpp");
+    if (systems.ui) src_files.appendAssumeCapacity("ui/ui.cpp");
+    if (systems.audio) src_files.appendAssumeCapacity("audio/audio.cpp");
+    if (systems.physics) src_files.appendAssumeCapacity("physics/physics.cpp");
+    if (systems.animation) src_files.appendAssumeCapacity("animation/animation.cpp");
+    engine.addCSourceFiles(.{
+        .files = src_files.items,
+        .flags = &flags,
+        .root = b.path("src"),
+    });
+
+    // get vulkan sdk path from env
     var env_map = try std.process.getEnvMap(b.allocator);
     defer env_map.deinit();
-    const path = env_map.get("VK_SDK_PATH") orelse @panic("failed to get value from envmap");
+    const path = env_map.get("VK_SDK_PATH") orelse @panic("failed to get VK_SDK_PATH from envmap");
 
     flux.linkSystemLibrary(if (target.result.os.tag == .windows) "vulkan-1" else "vulkan", .{});
     flux.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
@@ -78,8 +68,8 @@ pub fn build(b: *std.Build) !void {
     flux.addIncludePath(b.path("src"));
     flux.addIncludePath(b.path("deps/include"));
 
-    try compile_shaders(b, lib);
-    b.installArtifact(lib);
+    try compile_shaders(b, engine);
+    b.installArtifact(engine);
 
     if (target.result.os.tag == .windows) {
         b.installBinFile("deps/lib/glfw3.dll", "glfw3.dll");
@@ -88,14 +78,13 @@ pub fn build(b: *std.Build) !void {
         flux.addRPathSpecial("$ORIGIN");
     }
 
-    // setup runner and start runner
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.stdio = .inherit;
-    run_cmd.step.dependOn(&b.addInstallArtifact(exe, .{}).step);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
-    const run_step = b.step("run", "Start the runner");
-    run_step.dependOn(&run_cmd.step);
+    // add run host option
+    const run = b.addRunArtifact(host);
+    run.stdio = .inherit;
+    run.step.dependOn(&b.addInstallArtifact(host, .{}).step);
+    run.step.dependOn(b.getInstallStep());
+    if (b.args) |args| run.addArgs(args);
+    b.step("run", "Run the host application").dependOn(&run.step);
 }
 
 fn compile_shaders(b: *std.Build, lib: *std.Build.Step.Compile) !void {
