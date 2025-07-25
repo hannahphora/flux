@@ -5,16 +5,22 @@
 namespace flux::renderer::vkutil {
 
     struct DescriptorAllocator {
-        struct PoolSizeRatio{
-            VkDescriptorType type;
-            float ratio;
-        };
+        struct PoolSizeRatio {
+            VkDescriptorType type = {};
+            f32 ratio = {};
+        } pool;
 
-        VkDescriptorPool pool;
+        void initPool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios) {
 
-        void init_pool(VkDevice device, uint32_t maxSets, std::span<PoolSizeRatio> poolRatios);
-        void clear_descriptors(VkDevice device);
-        void destroy_pool(VkDevice device);
+        }
+
+        void clearDescriptors(VkDevice device) {
+
+        }
+
+        void destroyPool(VkDevice device) {
+            
+        }
 
         VkDescriptorSet allocate(VkDevice device, VkDescriptorSetLayout layout);
     };
