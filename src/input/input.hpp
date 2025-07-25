@@ -4,17 +4,16 @@
 #include <GLFW/glfw3.h>
 
 namespace flux {
-//--------------------------------------------------------------------------------------------
 
-struct InputState {
-    const EngineState* engine;
-    bool initialised = false;
-};
+    namespace input {
+        bool init(InputState* state);
+        void deinit(InputState* state);
+        void update(InputState* state);
+    }
 
-namespace input {
-    bool init(InputState* state);
-    void deinit(InputState* state);
-};
-
-//--------------------------------------------------------------------------------------------
-};
+    struct InputState {
+        const EngineState* engine;
+        bool initialised = false;
+    };
+    
+}

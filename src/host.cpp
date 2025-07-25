@@ -1,11 +1,11 @@
 #include <common/common.hpp>
 #include <core/engine.hpp>
 
-void load_functions(), load_engine(), unload_engine();
+void load_functions(), load_dl(), unload_dl();
 typedef void (*DlFn)(EngineState*);
-DlFn engine_init_fn = nullptr;
-DlFn engine_deinit_fn = nullptr;
-DlFn engine_update_fn = nullptr;
+DlFn init_fn = nullptr;
+DlFn deinit_fn = nullptr;
+DlFn update_fn = nullptr;
 
 #ifdef _WIN32
     #include <conio.h>
@@ -17,24 +17,25 @@ DlFn engine_update_fn = nullptr;
     #define kbhit _kbhit
     #define getchar_unlocked _getchar_nolock
 
-    HINSTANCE engine_dl = nullptr;
+    HINSTANCE dl = nullptr;
 
     void load_functions() {
-        if (!(engine_init_fn = (DlFn)GetProcAddress(engine_dl, "init")))
+        if (!(init_fn = (DlFn)GetProcAddress(dl, "init")))
             fputs("failed to find init fn\n", stderr);
-        if (!(engine_deinit_fn = (DlFn)GetProcAddress(engine_dl, "deinit")))
+        if (!(deinit_fn = (DlFn)GetProcAddress(dl, "deinit")))
             fputs("failed to find deinit fn\n", stderr);
-        if (!(engine_update_fn = (DlFn)GetProcAddress(engine_dl, "update")))
+        if (!(update_fn = (DlFn)GetProcAddress(dl, "update")))
             fputs("failed to find update fn\n", stderr);
     }
 
-    void load_engine() {
-        if (!(engine_dl = LoadLibraryA("flux.dll")))
-            fputs("failed to load engine\n", stderr);
+    void load_dl() {
+        if (!(dl = LoadLibraryA("flux.dll")))
+            fputs("failed to load dl\n", stderr);
     }
 
-    void unload_engine() {
-        FreeLibrary(engine_dl);
+    void unload_dl() {
+        if (!FreeLibrary(dl))
+            fputs("failed to unload dl\n", stderr);
     }
 #else
     // TODO: add linux support
@@ -42,14 +43,14 @@ DlFn engine_update_fn = nullptr;
 #endif
 
 i32 main() {
-    load_engine();
+    load_dl();
     load_functions();
     auto state = new EngineState;
-    engine_init_fn(state);
+    init_fn(state);
 
     state->running = true;
     while (state->running) {
-        engine_update_fn(state);
+        update_fn(state);
 
         if (kbhit()) {
             switch (getchar_unlocked()) {
@@ -60,9 +61,9 @@ i32 main() {
             }
             case 'r': { // reload
                 fputs("reloading\n", stdout);
-                unload_engine();
+                unload_dl();
                 system("zig build");
-                load_engine();
+                load_dl();
                 load_functions();
                 break;
             }
@@ -74,8 +75,8 @@ i32 main() {
         }
     }
 
-    engine_deinit_fn(state);
+    deinit_fn(state);
     delete state;
-    unload_engine();
+    unload_dl();
     return EXIT_SUCCESS;
 }

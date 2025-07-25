@@ -1,4 +1,6 @@
 #include <core/engine.hpp>
+#include <common/config.hpp>
+
 #include <renderer/renderer.hpp>
 #include <input/input.hpp>
 
@@ -12,21 +14,30 @@ void engine::init(EngineState* state) {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    state->window = glfwCreateWindow(800, 600, config::APP_NAME.c_str(), nullptr, nullptr);
-    state->deletionStack.emplace_back([state] {
+    state->deinitStack.emplace_back([state] {
         log::buffered("deinitialising glfw");
-        glfwDestroyWindow(state->window);
         glfwTerminate();
+    });
+
+    // create window
+    log::buffered("creating window");
+    if (!(state->window = glfwCreateWindow(
+        config::WINDOW_WIDTH, config::WINDOW_HEIGHT,
+        config::APP_NAME.c_str(),
+        nullptr, nullptr
+    ))) {
+        log::unbuffered("failed to create window", log::level::ERROR);
+    }
+    state->deinitStack.emplace_back([state] {
+        log::buffered("destroying window");
+        glfwDestroyWindow(state->window);
     });
 
     // init renderer
     log::buffered("initialising renderer");
-    state->renderer = new RendererState { .engine = state };
-    if (!renderer::init(state->renderer)) {
+    if (!renderer::init(state->renderer = new RendererState { .engine = state }))
         log::unbuffered("failed to init renderer", log::level::ERROR);
-        std::abort(EXIT_FAILURE);
-    }
-    state->deletionStack.emplace_back([state] {
+    state->deinitStack.emplace_back([state] {
         log::buffered("deinitialising renderer");
         renderer::deinit(state->renderer);
         delete state->renderer;
@@ -34,12 +45,9 @@ void engine::init(EngineState* state) {
 
     // init input
     log::buffered("initialising input");
-    state->input = new InputState { .engine = state };
-    if (!input::init(state->input)) {
+    if (!input::init(state->input = new InputState { .engine = state }))
         log::unbuffered("failed to init input", log::level::ERROR);
-        std::abort();
-    }
-    state->deletionStack.emplace_back([state] {
+    state->deinitStack.emplace_back([state] {
         log::buffered("deinitialising input");
         input::deinit(state->input);
         delete state->input;
@@ -50,16 +58,18 @@ void engine::init(EngineState* state) {
 
 void engine::deinit(EngineState* state) {
     // run callbacks in deletion stack
-    while (!state->deletionStack.empty()) {
-        state->deletionStack.back()();
-        state->deletionStack.pop_back();
+    while (!state->deinitStack.empty()) {
+        state->deinitStack.back()();
+        state->deinitStack.pop_back();
     }
-
     log::flush();
 }
 
 void engine::update(EngineState* state) {
     glfwPollEvents();
+
+    input::update(state->input);
+    renderer::drawFrame(state->renderer);
 
     if (glfwWindowShouldClose(state->window))
         state->running = false;

@@ -35,3 +35,5 @@ namespace flux { struct AnimationState; };
 namespace flux { struct NetworkingState; };
 
 using namespace flux;
+
+using DeinitStack = std::vector<std::function<void()>>;

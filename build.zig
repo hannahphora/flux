@@ -71,6 +71,7 @@ pub fn build(builder: *std.Build) !void {
 
     // run host
     const run_cmd = b.addRunArtifact(host);
+    run_cmd.step.dependOn(&b.addInstallArtifact(host, .{}).step);
     run_cmd.step.dependOn(b.getInstallStep());
     run_cmd.stdio = .inherit;
     b.step("run", "Run the host").dependOn(&run_cmd.step);
