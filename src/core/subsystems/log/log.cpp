@@ -1,4 +1,4 @@
-#include <core/subsystems/log/log.hpp>
+#include "log.hpp"
 
 namespace flux::log {
     static char buffer[config::log::BUFFER_SIZE] = {0};
@@ -9,12 +9,10 @@ namespace flux::log {
         "ERROR",
     };
 
-    namespace internal {
-        void abortIfError(level lvl) {
-            if (lvl == level::ERROR) {
-                flush();
-                std::abort();
-            }
+    void abortIfError(level lvl) {
+        if (lvl == level::ERROR) {
+            flush();
+            std::abort();
         }
     }
 }
@@ -22,7 +20,7 @@ namespace flux::log {
 void log::buffered(const std::string& msg, level lvl) {
     sprintf(buffer + index, "[%s] %s\n", levelStrings[(usize)lvl], msg.c_str());
     index += strlen(buffer + index);
-    internal::abortIfError(lvl);
+    abortIfError(lvl);
 
     if (index >= config::log::BUFFER_FLUSH_CAP)
         flush();
@@ -30,7 +28,7 @@ void log::buffered(const std::string& msg, level lvl) {
 
 void log::unbuffered(const std::string& msg, level lvl) {
     fprintf(config::log::OUTPUT_FILE, "[%s] %s\n", levelStrings[(usize)lvl], msg.c_str());
-    internal::abortIfError(lvl);
+    abortIfError(lvl);
 }
 
 void log::flush() {

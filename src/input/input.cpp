@@ -1,4 +1,5 @@
-#include <input/input.hpp>
+#include "input.hpp"
+
 #include <core/engine.hpp>
 
 bool input::init(InputState* state) {
@@ -11,5 +12,6 @@ void input::deinit(InputState* state) {
 }
 
 void input::update(InputState* state) {
-
+    if (glfwGetKey(state->engine->window, GLFW_KEY_ESCAPE))
+        glfwSetWindowShouldClose(state->engine->window, true);
 }

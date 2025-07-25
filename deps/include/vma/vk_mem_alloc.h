@@ -290,21 +290,21 @@ extern "C" {
 // The VMA_NULLABLE macro is defined to be _Nullable when compiling with Clang.
 // see: https://clang.llvm.org/docs/AttributeReference.html#nullable
 #ifndef VMA_NULLABLE
-    #ifdef __clang__
-        #define VMA_NULLABLE _Nullable
-    #else
+//    #ifdef __clang__
+//        #define VMA_NULLABLE _Nullable
+//    #else
         #define VMA_NULLABLE
-    #endif
+//    #endif
 #endif
 
 // The VMA_NOT_NULL macro is defined to be _Nonnull when compiling with Clang.
 // see: https://clang.llvm.org/docs/AttributeReference.html#nonnull
 #ifndef VMA_NOT_NULL
-    #ifdef __clang__
-        #define VMA_NOT_NULL _Nonnull
-    #else
+//    #ifdef __clang__
+//        #define VMA_NOT_NULL _Nonnull
+//    #else
         #define VMA_NOT_NULL
-    #endif
+//    #endif
 #endif
 
 // If non-dispatchable handles are represented as pointers then we can give

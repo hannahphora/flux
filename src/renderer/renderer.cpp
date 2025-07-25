@@ -1,9 +1,14 @@
-#include <renderer/renderer.hpp>
+#define VMA_IMPLEMENTATION
+#include "renderer.hpp"
+
 #include <core/engine.hpp>
 #include <core/subsystems/log/log.hpp>
+#include <core/subsystems/utility/utility.hpp>
 
 #include "images.hpp"
 #include "helpers.hpp"
+
+using namespace renderer;
 
 bool renderer::init(RendererState* state) {
     // create instance
@@ -58,6 +63,18 @@ bool renderer::init(RendererState* state) {
         vkDestroyDevice(state->device, nullptr);
     });
 
+    // init vma
+    VmaAllocatorCreateInfo vmaInfo = {
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+        .physicalDevice = state->physicalDevice,
+        .device = state->device,
+        .instance = state->instance,
+    };
+    vmaCreateAllocator(&vmaInfo, &state->allocator);
+    state->deinitStack.emplace_back([state] {
+        vmaDestroyAllocator(state->allocator);
+    });
+
     // get queues
     state->graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
     state->computeQueue = vkbDevice.get_queue(vkb::QueueType::compute).value();
@@ -67,7 +84,32 @@ bool renderer::init(RendererState* state) {
     state->transferQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::transfer).value();
     
     // init swapchain
-    createSwapchain(state);
+    i32 w, h; // get window size
+    glfwGetWindowSize(state->engine->window, &w, &h);
+    createSwapchain(state, w, h);
+
+	state->drawImg.fmt = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
+	state->drawImg.extent = { (u32)w, (u32)h, 1U };
+	VkImageUsageFlags drawImgUsages = {};
+    drawImgUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    drawImgUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    drawImgUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+    drawImgUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	auto rImgInfo = vkinit::imgCreateInfo(state->drawImg.fmt, drawImgUsages, state->drawImg.extent);
+	VmaAllocationCreateInfo rImgAllocInfo = { // alloc from gpu local memory
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+    };
+	vmaCreateImage(state->allocator, &rImgInfo, &rImgAllocInfo, &state->drawImg.img, &state->drawImg.allocation, nullptr);
+
+	auto rImgViewInfo = vkinit::imgViewCreateInfo(state->drawImg.fmt, state->drawImg.img, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCheck(vkCreateImageView(state->device, &rImgViewInfo, nullptr, &state->drawImg.view));
+
+	state->deinitStack.emplace_back([state] {
+		vkDestroyImageView(state->device, state->drawImg.view, nullptr);
+		vmaDestroyImage(state->allocator, state->drawImg.img, state->drawImg.allocation);
+	});
 
     // init cmds
     auto cmdPoolInfo = vkinit::cmdPoolCreateInfo(
@@ -87,36 +129,45 @@ bool renderer::init(RendererState* state) {
         vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].renderSemaphore));
     }
 
-    // NOTE: cmd pool must be destroyed b4 sync objects
-    state->deinitStack.emplace_back([state] {
-        vkDeviceWaitIdle(state->device);
-        for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
-            vkDestroyCommandPool(state->device, state->frames[i].cmdPool, nullptr);
-
-            vkDestroyFence(state->device, state->frames[i].renderFence, nullptr);
-            vkDestroySemaphore(state->device, state->frames[i].renderSemaphore, nullptr);
-            vkDestroySemaphore(state->device, state->frames[i].swapchainSemaphore, nullptr);
-        }
-    });
-
     state->initialised = true;
     return true;
 }
 
 void renderer::deinit(RendererState* state) {
-    // run callbacks in deletion stack
-    while (!state->deinitStack.empty()) {
-        state->deinitStack.back()();
-        state->deinitStack.pop_back();
+    vkDeviceWaitIdle(state->device);
+
+    // free perframe structures and deinit stack
+    for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
+        vkDestroyCommandPool(state->device, state->frames[i].cmdPool, nullptr);
+
+        vkDestroyFence(state->device, state->frames[i].renderFence, nullptr);
+        vkDestroySemaphore(state->device, state->frames[i].renderSemaphore, nullptr);
+        vkDestroySemaphore(state->device, state->frames[i].swapchainSemaphore, nullptr);
+
+        utility::flushDeinitStack(&state->frames[i].deinitStack);
     }
 
+
+    utility::flushDeinitStack(&state->deinitStack);
     state->initialised = false;
+}
+
+void drawBg(RendererState* state, VkCommandBuffer cmd) {
+    VkClearColorValue clearValue;
+    float flash = std::abs(std::sin(state->frameNumber / 120.f));
+    clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+
+    VkImageSubresourceRange clearRange = vkinit::imgSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+
+    vkCmdClearColorImage(cmd, state->drawImg.img, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
 }
 
 void renderer::draw(RendererState* state) {
     // wait on gpu to finish rendering last frame
     vkCheck(vkWaitForFences(state->device, 1, &getCurrentFrame(state).renderFence, true, 1000000000 /*max 1 second timeout*/));
     vkCheck(vkResetFences(state->device, 1, &getCurrentFrame(state).renderFence));
+
+    utility::flushDeinitStack(&getCurrentFrame(state).deinitStack);
 
     // request img from swapchain
     u32 swapchainImgIndex;
@@ -132,17 +183,26 @@ void renderer::draw(RendererState* state) {
     vkCheck(vkResetCommandBuffer(cmd, 0));
     auto cmdBeginInfo = vkinit::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
+    state->drawExtent.width = state->drawImg.extent.width;
+    state->drawExtent.height = state->drawImg.extent.height;
+
     // records cmds
     vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
     {
-        // transition swapchain img to writeable state
-        vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        // clearn color from frame number, flashes with 120 frame period
-        VkClearColorValue clearValue = { { 0.f, 0.f, std::abs(std::sin(state->frameNumber / 120.f)), 1.f } };
-        auto clearRange = vkinit::imgSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
-        vkCmdClearColorImage(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
-        // transition swapchain img to presentable state
-	    vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        // transition our main draw image into general layout so we can write into it
+        // we will overwrite it all so we dont care about what was the older layout
+        vkutil::transitionImg(cmd, state->drawImg.img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        drawBg(state, cmd);
+
+        //transition the draw image and the swapchain image into their correct transfer layouts
+        vkutil::transitionImg(cmd, state->drawImg.img, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        // execute a copy from the draw image into the swapchain
+        vkutil::copyImgToImg(cmd, state->drawImg.img, state->swapchainImgs[swapchainImgIndex], state->drawExtent, state->swapchainExtent);
+
+        // set swapchain image layout to Present so we can show it on the screen
+        vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 	vkCheck(vkEndCommandBuffer(cmd));
 
@@ -150,16 +210,16 @@ void renderer::draw(RendererState* state) {
     auto cmdInfo = vkinit::cmdBufferSubmitInfo(cmd);	
 	auto waitInfo = vkinit::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, getCurrentFrame(state).swapchainSemaphore);
 	auto signalInfo = vkinit::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, getCurrentFrame(state).renderSemaphore);
-	auto submitInfo = vkinit::SubmitInfo(&cmdInfo, &signalInfo, &waitInfo);
+	auto submitInfo = vkinit::submitInfo(&cmdInfo, &signalInfo, &waitInfo);
 	vkCheck(vkQueueSubmit2(state->graphicsQueue, 1, &submitInfo, getCurrentFrame(state).renderFence));
 
-    // prepare present
+    // prepare and present
 	VkPresentInfoKHR presentInfo = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pSwapchains = &state->swapchain,
-        .swapchainCount = 1,
-        .pWaitSemaphores = &getCurrentFrame(state).renderSemaphore,
         .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &getCurrentFrame(state).renderSemaphore,
+        .swapchainCount = 1,
+        .pSwapchains = &state->swapchain,
         .pImageIndices = &swapchainImgIndex,
     };
 	vkCheck(vkQueuePresentKHR(state->graphicsQueue, &presentInfo));

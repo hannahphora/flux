@@ -7,6 +7,9 @@
 #include <core/subsystems/log/log.hpp>
 #include <core/subsystems/log/log.cpp>
 
+#include <core/subsystems/utility/utility.hpp>
+#include <core/subsystems/utility/utility.cpp>
+
 void engine::init(EngineState* state) {
 
     // init glfw
@@ -57,11 +60,7 @@ void engine::init(EngineState* state) {
 }
 
 void engine::deinit(EngineState* state) {
-    // run callbacks in deletion stack
-    while (!state->deinitStack.empty()) {
-        state->deinitStack.back()();
-        state->deinitStack.pop_back();
-    }
+    utility::flushDeinitStack(&state->deinitStack);
     log::flush();
 }
 

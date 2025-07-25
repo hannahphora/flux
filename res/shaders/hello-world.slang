@@ -1,4 +1,3 @@
-// hello-world.slang
 StructuredBuffer<float> buffer0;
 StructuredBuffer<float> buffer1;
 RWStructuredBuffer<float> result;
