@@ -69,7 +69,7 @@ void engine::update(EngineState* state) {
     glfwPollEvents();
 
     input::update(state->input);
-    renderer::drawFrame(state->renderer);
+    renderer::draw(state->renderer);
 
     if (glfwWindowShouldClose(state->window))
         state->running = false;

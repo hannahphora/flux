@@ -88,5 +88,24 @@ namespace flux::renderer {
             }
         }
 
+        VkCommandBufferBeginInfo cmdBufferBeginInfo(VkCommandBufferUsageFlags flags = 0) {
+            return {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .pInheritanceInfo = nullptr,
+                .flags = flags,
+            };
+        }
+
+        VkImageSubresourceRange imgSubresourceRange(VkImageAspectFlags aspectMask) {
+            return {
+                .aspectMask = aspectMask,
+                .baseMipLevel = 0,
+                .levelCount = VK_REMAINING_MIP_LEVELS,
+                .baseArrayLayer = 0,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS,
+            };
+        }
+
+
     }
 }

@@ -12,7 +12,7 @@ namespace flux {
     namespace renderer {
         bool init(RendererState* state);
         void deinit(RendererState* state);
-        void drawFrame(RendererState* state);
+        void draw(RendererState* state);
 
         struct FrameData {
             VkCommandPool cmdPool = nullptr;

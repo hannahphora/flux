@@ -2,6 +2,7 @@
 #include <core/engine.hpp>
 #include <core/subsystems/log/log.hpp>
 
+#include "images.hpp"
 #include "helpers.hpp"
 
 bool renderer::init(RendererState* state) {
@@ -70,15 +71,11 @@ bool renderer::init(RendererState* state) {
 
     // init cmds
     auto cmdPoolInfo = vkinit::cmdPoolCreateInfo(
-        state->graphicsQueueFamily,
-        VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
-    );
+        state->graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 	for (usize i = 0; i < config::renderer::FRAME_OVERLAP; i++) {
-		vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo,
-            nullptr, &state->frames[i].cmdPool));
+		vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->frames[i].cmdPool));
 		auto cmdAllocInfo = vkinit::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
-		vkCheck(vkAllocateCommandBuffers(
-            state->device, &cmdAllocInfo, &state->frames[i].primaryCmdBuffer));
+		vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->frames[i].primaryCmdBuffer));
 	}
     state->deinitStack.emplace_back([state] {
         vkDeviceWaitIdle(state->device);
@@ -90,12 +87,9 @@ bool renderer::init(RendererState* state) {
     auto fenceCreateInfo = vkinit::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
     auto semCreateInfo = vkinit::semaphoreCreateInfo();
     for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
-        vkCheck(vkCreateFence(state->device, &fenceCreateInfo, nullptr,
-            &state->frames[i].renderFence));
-        vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr,
-            &state->frames[i].swapchainSemaphore));
-        vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr,
-            &state->frames[i].renderSemaphore));
+        vkCheck(vkCreateFence(state->device, &fenceCreateInfo, nullptr, &state->frames[i].renderFence));
+        vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].swapchainSemaphore));
+        vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].renderSemaphore));
     }
 
     state->initialised = true;
@@ -112,6 +106,25 @@ void renderer::deinit(RendererState* state) {
     state->initialised = false;
 }
 
-void renderer::drawFrame(RendererState* state) {
+void renderer::draw(RendererState* state) {
+    // wait on gpu to finish rendering last frame
+    vkCheck(vkWaitForFences(state->device, 1, &getCurrentFrame(state).renderFence, true, 1000000000 /*max 1 second timeout*/));
+    vkCheck(vkResetFences(state->device, 1, &getCurrentFrame(state).renderFence));
+
+    // request img from swapchain
+    u32 swapchainImgIndex;
+    vkCheck(vkAcquireNextImageKHR(
+        state->device, state->swapchain,
+        1000000000 /*max 1 second timeout*/,
+        getCurrentFrame(state).swapchainSemaphore,
+        nullptr, &swapchainImgIndex
+    ));
+
+    // reset cmd buffer and records cmds
+    auto cmd = getCurrentFrame(state).primaryCmdBuffer;
+    vkCheck(vkResetCommandBuffer(cmd, 0));
+    auto cmdBeginInfo = vkinit::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
     
 }
