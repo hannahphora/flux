@@ -23,9 +23,12 @@ struct RendererState {
 namespace renderer {
     bool init(RendererState* state);
     void deinit(RendererState* state);
-
-    void vkCheck(VkResult result);
+    void drawFrame(RendererState* state);
 };
+
+namespace renderer::internal {
+    void vkCheck(VkResult result);
+}
 
 //--------------------------------------------------------------------------------------------
 };

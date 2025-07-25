@@ -1,7 +1,9 @@
 #include <renderer/renderer.hpp>
 #include <core/subsystems/log/log.hpp>
 
-void renderer::vkCheck(VkResult result) {
+using namespace renderer::internal;
+
+void vkCheck(VkResult result) {
     if (result) {
         log::unbuffered(std::format("Vulkan error: {}", string_VkResult(result)), log::level::ERROR);
         std::abort();
