@@ -1,10 +1,5 @@
 #pragma once
-#include <common/types.hpp>
-
-#include <cstdlib>
-#include <string>
-#include <vector>
-#include <functional>
+#include <common/common.hpp>
 
 #include <GLFW/glfw3.h>
 

@@ -1,14 +1,10 @@
 #pragma once
-#include <common/types.hpp>
+#include <common/common.hpp>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
+#include <vkb/VkBootstrap.h>
 #include <GLFW/glfw3.h>
-
-#include <cstdlib>
-#include <string>
-#include <vector>
-#include <functional>
 
 namespace flux {
 //--------------------------------------------------------------------------------------------
@@ -18,7 +14,6 @@ struct RendererState {
     bool initialised = false;
     usize frameNumber = 0;
 
-    // vulkan handles
     VkInstance vkInstance = nullptr;
     VkDebugUtilsMessengerEXT vkDbgMessenger = nullptr;
 
@@ -28,6 +23,8 @@ struct RendererState {
 namespace renderer {
     bool init(RendererState* state);
     void deinit(RendererState* state);
+
+    void vkCheck(VkResult result);
 };
 
 //--------------------------------------------------------------------------------------------

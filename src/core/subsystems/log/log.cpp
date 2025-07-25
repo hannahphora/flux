@@ -1,29 +1,29 @@
 #include <core/subsystems/log/log.hpp>
 
-static char logBuffer[config::log::BUFFER_SIZE] = {0};
-static usize logBufferIndex = 0;
+namespace flux::log {
+    static char buffer[config::log::BUFFER_SIZE] = {0};
+    static usize index = 0;
+    static const char* levelStrings[] = {
+        "DEBUG",
+        "WARNING",
+        "ERROR",
+    };
+}
 
-static const char* LogLevelStrings[] = {
-    "DEBUG",
-    "WARNING",
-    "ERROR",
-};
+void log::buffered(const std::string& msg, level lvl) {
+    sprintf(buffer + index, "[%s] %s\n", levelStrings[(usize)lvl], msg.c_str());
+    index += strlen(buffer + index);
 
-void log::buffered(const char* msg, LogLevel lvl) {
-    sprintf(logBuffer + logBufferIndex, "[%s] %s\n", LogLevelStrings[(usize)lvl], msg);
-    logBufferIndex += strlen(logBuffer + logBufferIndex);
-
-    // flush log if within 128 characters of buffer end
-    if (logBufferIndex >= config::log::BUFFER_SIZE - 128)
+    if (index >= config::log::BUFFER_FLUSH_CAP)
         flush();
 }
 
-void log::unbuffered(const char* msg, LogLevel lvl) {
-    fprintf(config::log::OUTPUT_FILE, "[%s] %s\n", LogLevelStrings[(usize)lvl], msg);
+void log::unbuffered(const std::string& msg, level lvl) {
+    fprintf(config::log::OUTPUT_FILE, "[%s] %s\n", levelStrings[(usize)lvl], msg.c_str());
 }
 
 void log::flush() {
-    fwrite(logBuffer, 1, logBufferIndex, config::log::OUTPUT_FILE);
-    memset(logBuffer, 0, logBufferIndex);
-    logBufferIndex = 0;
+    fwrite(buffer, 1, index, config::log::OUTPUT_FILE);
+    memset(buffer, 0, index);
+    index = 0;
 }

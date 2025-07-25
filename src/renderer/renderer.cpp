@@ -1,6 +1,13 @@
 #include <renderer/renderer.hpp>
 #include <core/subsystems/log/log.hpp>
 
+void renderer::vkCheck(VkResult result) {
+    if (result) {
+        log::unbuffered(std::format("Vulkan error: {}", string_VkResult(result)), log::level::ERROR);
+        std::abort();
+    }
+}
+
 bool renderer::init(RendererState* state) {
     
     state->initialised = true;

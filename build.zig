@@ -1,13 +1,6 @@
 const std = @import("std");
 
-const systems: packed struct {
-    renderer: bool = true,
-    input: bool = true,
-    ui: bool = false,
-    audio: bool = false,
-    physics: bool = false,
-    animation: bool = false,
-} = .{};
+const BuildMode = enum { debug, release };
 
 const flags = .{
     "-pedantic-errors",
@@ -16,22 +9,27 @@ const flags = .{
     "-g",
 };
 
-const BuildMode = enum { debug, release };
+var b: *std.Build = undefined;
 
-pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
-    const mode = b.option(BuildMode, "mode", "select build mode (default = debug)") orelse .debug;
+const log_results = false; // TODO: move this to being a build option
 
+pub fn build(builder: *std.Build) !void {
+    b = builder;
     const options = b.addOptions();
-    options.addOption(BuildMode, "mode", mode);
+    const target = b.standardTargetOptions(.{});
+    const build_mode = b.option(BuildMode, "build_mode", "build mode (default = debug)") orelse .debug;
+    options.addOption(BuildMode, "build_mode", build_mode);
 
     const flux = b.createModule(.{
         .target = target,
-        .optimize = if (mode == .debug) .Debug else .ReleaseFast,
+        .optimize = if (build_mode == .debug) .Debug else .ReleaseFast,
         .link_libcpp = true,
     });
 
-    const host = b.addExecutable(.{ .root_module = flux, .name = "host" });
+    const host = b.addExecutable(.{
+        .root_module = flux,
+        .name = "runner",
+    });
     host.addCSourceFile(.{ .file = b.path("src/host.cpp"), .flags = &flags });
 
     const engine = b.addLibrary(.{
@@ -39,26 +37,16 @@ pub fn build(b: *std.Build) !void {
         .name = "flux",
         .linkage = .dynamic,
     });
+    engine.addCSourceFiles(.{ .files = &.{
+        "src/core/engine.cpp",
+        "src/renderer/renderer.cpp",
+        "src/input/input.cpp",
+    }, .flags = &flags });
+    try addCSourceFilesRecursive(engine, "deps/src");
 
-    var src_files = try std.ArrayList([]const u8).initCapacity(b.allocator, @bitSizeOf(@TypeOf(systems)) + 1);
-    defer src_files.deinit();
-    src_files.appendAssumeCapacity("core/engine.cpp");
-    if (systems.renderer) src_files.appendAssumeCapacity("renderer/renderer.cpp");
-    if (systems.input) src_files.appendAssumeCapacity("input/input.cpp");
-    if (systems.ui) src_files.appendAssumeCapacity("ui/ui.cpp");
-    if (systems.audio) src_files.appendAssumeCapacity("audio/audio.cpp");
-    if (systems.physics) src_files.appendAssumeCapacity("physics/physics.cpp");
-    if (systems.animation) src_files.appendAssumeCapacity("animation/animation.cpp");
-    engine.addCSourceFiles(.{
-        .files = src_files.items,
-        .flags = &flags,
-        .root = b.path("src"),
-    });
-
-    // get vulkan sdk path from env
     var env_map = try std.process.getEnvMap(b.allocator);
     defer env_map.deinit();
-    const path = env_map.get("VK_SDK_PATH") orelse @panic("failed to get VK_SDK_PATH from envmap");
+    const path = env_map.get("VK_SDK_PATH") orelse @panic("failed to get from envmap");
 
     flux.linkSystemLibrary(if (target.result.os.tag == .windows) "vulkan-1" else "vulkan", .{});
     flux.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
@@ -66,9 +54,12 @@ pub fn build(b: *std.Build) !void {
     flux.addLibraryPath(b.path("deps/lib"));
     flux.linkSystemLibrary("glfw3", .{});
     flux.addIncludePath(b.path("src"));
-    flux.addIncludePath(b.path("deps/include"));
 
-    try compile_shaders(b, engine);
+    flux.addIncludePath(b.path("deps/include"));
+    flux.addIncludePath(b.path("deps/include/meshoptimizer"));
+
+    try compileShaders();
+
     b.installArtifact(engine);
 
     if (target.result.os.tag == .windows) {
@@ -78,23 +69,24 @@ pub fn build(b: *std.Build) !void {
         flux.addRPathSpecial("$ORIGIN");
     }
 
-    // add run host option
-    const run = b.addRunArtifact(host);
-    run.stdio = .inherit;
-    run.step.dependOn(&b.addInstallArtifact(host, .{}).step);
-    run.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run.addArgs(args);
-    b.step("run", "Run the host application").dependOn(&run.step);
+    // run host
+    const run_cmd = b.addRunArtifact(host);
+    run_cmd.step.dependOn(b.getInstallStep());
+    run_cmd.stdio = .inherit;
+    b.step("run", "Run the host").dependOn(&run_cmd.step);
 }
 
-fn compile_shaders(b: *std.Build, lib: *std.Build.Step.Compile) !void {
-    var shaders_dir = try b.build_root.handle.openDir("res/shaders", .{ .iterate = true });
-    defer shaders_dir.close();
+fn compileShaders() !void {
+    var dir = try b.build_root.handle.openDir("res/shaders", .{ .iterate = true });
+    defer dir.close();
 
-    var itr = shaders_dir.iterate();
-    while (try itr.next()) |entry| {
-        if (entry.kind == .file and std.mem.eql(u8, std.fs.path.extension(entry.name), ".slang")) {
-            const name = std.fs.path.stem(entry.name);
+    var walker = try dir.walk(b.allocator);
+    defer walker.deinit();
+
+    while (try walker.next()) |entry| {
+        if (entry.kind == .file and std.mem.eql(u8, std.fs.path.extension(entry.basename), ".slang")) {
+            const name = std.fs.path.stem(entry.basename);
+            if (log_results) std.debug.print("Found shader: {s}\n", .{name});
             const source = try std.fmt.allocPrint(b.allocator, "res/shaders/{s}.slang", .{name});
             const outpath = try std.fmt.allocPrint(b.allocator, "res/shaders/{s}.spv", .{name});
 
@@ -109,8 +101,26 @@ fn compile_shaders(b: *std.Build, lib: *std.Build.Step.Compile) !void {
             });
             const output = shader_compilation.addOutputFileArg(outpath);
             shader_compilation.addFileArg(b.path(source));
+            b.getInstallStep().dependOn(&b.addInstallBinFile(output, outpath).step);
+        }
+    }
+}
 
-            lib.step.dependOn(&b.addInstallBinFile(output, outpath).step);
+fn addCSourceFilesRecursive(c: *std.Build.Step.Compile, path: []const u8) !void {
+    var dir = try b.build_root.handle.openDir(path, .{ .iterate = true });
+    defer dir.close();
+
+    var walker = try dir.walk(b.allocator);
+    defer walker.deinit();
+
+    while (try walker.next()) |entry| {
+        if (entry.kind == .file and
+            (std.mem.eql(u8, std.fs.path.extension(entry.basename), ".c") or
+                std.mem.eql(u8, std.fs.path.extension(entry.basename), ".cpp")))
+        {
+            if (log_results) std.debug.print("Found source file: {s}\n", .{entry.basename});
+            const src_path = try std.fmt.allocPrint(b.allocator, "deps/src/{s}", .{entry.path});
+            c.addCSourceFile(.{ .file = b.path(src_path), .flags = &flags });
         }
     }
 }

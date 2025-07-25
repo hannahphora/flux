@@ -1,26 +1,19 @@
 #pragma once
-#include <common/types.hpp>
+#include <common/common.hpp>
 #include <common/config.hpp>
 
-#include <cstdlib>
-#include <stdio.h>
-#include <cstring>
-
-namespace flux {
+namespace flux::log {
 //--------------------------------------------------------------------------------------------
 
-enum class LogLevel : u8 {
+enum class level : u8 {
     DEBUG,
     WARNING,
     ERROR,
-    DEFAULT = DEBUG,
 };
 
-namespace log {
-    void buffered(const char* msg, LogLevel lvl = LogLevel::DEFAULT);
-    void unbuffered(const char* msg, LogLevel lvl = LogLevel::DEFAULT);
-    void flush();
-};
+void buffered(const std::string& msg, level lvl = level::DEBUG);
+void unbuffered(const std::string& msg, level lvl = level::DEBUG);
+void flush();
 
 //--------------------------------------------------------------------------------------------
-};
+}
