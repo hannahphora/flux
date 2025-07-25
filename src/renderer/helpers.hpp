@@ -106,6 +106,35 @@ namespace flux::renderer {
             };
         }
 
+        VkSemaphoreSubmitInfo semaphoreSubmitInfo(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore) {
+            return {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .semaphore = semaphore,
+                .stageMask = stageMask,
+                .deviceIndex = 0,
+                .value = 1,
+            };
+        }
+
+        VkCommandBufferSubmitInfo cmdBufferSubmitInfo(VkCommandBuffer cmd) {
+            return {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+                .commandBuffer = cmd,
+                .deviceMask = 0,
+            };
+        }
+
+        VkSubmitInfo2 submitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalInfo, VkSemaphoreSubmitInfo* waitInfo) {
+            return {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+                .waitSemaphoreInfoCount = (waitSemaphoreInfo == nullptr) ? 0 : 1,
+                .pWaitSemaphoreInfos = waitSemaphoreInfo,
+                .signalSemaphoreInfoCount = (signalSemaphoreInfo == nullptr) ? 0 : 1,
+                .pSignalSemaphoreInfos = signalSemaphoreInfo,
+                .commandBufferInfoCount = 1,
+                .pCommandBufferInfos = cmd,
+            };
+        }
 
     }
 }

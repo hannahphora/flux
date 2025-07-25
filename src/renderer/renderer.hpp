@@ -17,7 +17,7 @@ namespace flux {
         struct FrameData {
             VkCommandPool cmdPool = nullptr;
             VkCommandBuffer primaryCmdBuffer = nullptr;
-            // sync structures
+            // sync objects
             VkSemaphore swapchainSemaphore = nullptr;
             VkSemaphore renderSemaphore = nullptr;
             VkFence renderFence = nullptr;

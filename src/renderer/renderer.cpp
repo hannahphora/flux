@@ -77,11 +77,6 @@ bool renderer::init(RendererState* state) {
 		auto cmdAllocInfo = vkinit::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
 		vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->frames[i].primaryCmdBuffer));
 	}
-    state->deinitStack.emplace_back([state] {
-        vkDeviceWaitIdle(state->device);
-        for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++)
-            vkDestroyCommandPool(state->device, state->frames[i].cmdPool, nullptr);
-    });
 
     // init sync structures
     auto fenceCreateInfo = vkinit::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -91,6 +86,18 @@ bool renderer::init(RendererState* state) {
         vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].swapchainSemaphore));
         vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].renderSemaphore));
     }
+
+    // NOTE: cmd pool must be destroyed b4 sync objects
+    state->deinitStack.emplace_back([state] {
+        vkDeviceWaitIdle(state->device);
+        for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
+            vkDestroyCommandPool(state->device, state->frames[i].cmdPool, nullptr);
+
+            vkDestroyFence(state->device, state->frames[i].renderFence, nullptr);
+            vkDestroySemaphore(state->device, state->frames[i].renderSemaphore, nullptr);
+            vkDestroySemaphore(state->device, state->frames[i].swapchainSemaphore, nullptr);
+        }
+    });
 
     state->initialised = true;
     return true;
@@ -120,11 +127,42 @@ void renderer::draw(RendererState* state) {
         nullptr, &swapchainImgIndex
     ));
 
-    // reset cmd buffer and records cmds
+    // reset cmd buffer
     auto cmd = getCurrentFrame(state).primaryCmdBuffer;
     vkCheck(vkResetCommandBuffer(cmd, 0));
     auto cmdBeginInfo = vkinit::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-    vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-    
+    // records cmds
+    vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+    {
+        // transition swapchain img to writeable state
+        vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        // clearn color from frame number, flashes with 120 frame period
+        VkClearColorValue clearValue = { { 0.f, 0.f, std::abs(std::sin(state->frameNumber / 120.f)), 1.f } };
+        auto clearRange = vkinit::imgSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+        vkCmdClearColorImage(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+        // transition swapchain img to presentable state
+	    vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
+	vkCheck(vkEndCommandBuffer(cmd));
+
+    // submit cmd buffer to queue to execute
+    auto cmdInfo = vkinit::cmdBufferSubmitInfo(cmd);	
+	auto waitInfo = vkinit::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, getCurrentFrame(state).swapchainSemaphore);
+	auto signalInfo = vkinit::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, getCurrentFrame(state).renderSemaphore);
+	auto submitInfo = vkinit::SubmitInfo(&cmdInfo, &signalInfo, &waitInfo);
+	vkCheck(vkQueueSubmit2(state->graphicsQueue, 1, &submitInfo, getCurrentFrame(state).renderFence));
+
+    // prepare present
+	VkPresentInfoKHR presentInfo = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pSwapchains = &state->swapchain,
+        .swapchainCount = 1,
+        .pWaitSemaphores = &getCurrentFrame(state).renderSemaphore,
+        .waitSemaphoreCount = 1,
+        .pImageIndices = &swapchainImgIndex,
+    };
+	vkCheck(vkQueuePresentKHR(state->graphicsQueue, &presentInfo));
+
+	state->frameNumber++;
 }
