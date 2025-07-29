@@ -1,10 +1,10 @@
 #pragma once
-#include "renderer.hpp"
+#include "../renderer.hpp"
 #include "helpers.hpp"
 
 namespace flux::renderer::vkinit {
 
-    VkImageSubresourceRange imgSubresourceRange(VkImageAspectFlags aspectMask) {
+    VkImageSubresourceRange imageSubresourceRange(VkImageAspectFlags aspectMask) {
         return {
             .aspectMask = aspectMask,
             .baseMipLevel = 0,
@@ -14,7 +14,7 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkImageCreateInfo imgCreateInfo(VkFormat fmt, VkImageUsageFlags usageFlags, VkExtent3D extent) {
+    VkImageCreateInfo imageCreateInfo(VkFormat fmt, VkImageUsageFlags usageFlags, VkExtent3D extent) {
         return {
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .imageType = VK_IMAGE_TYPE_2D,
@@ -29,11 +29,11 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkImageViewCreateInfo imgViewCreateInfo(VkFormat fmt, VkImage img, VkImageAspectFlags aspectFlags) {
-        // build a img view for the depth img to use for rendering
+    VkImageViewCreateInfo imageViewCreateInfo(VkFormat fmt, VkImage image, VkImageAspectFlags aspectFlags) {
+        // build a image view for the depth image to use for rendering
         return {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = img,
+            .image = image,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .format = fmt,
             .subresourceRange = {
@@ -48,10 +48,10 @@ namespace flux::renderer::vkinit {
 }
 
 namespace flux::renderer::vkutil {
-    void transitionImg(VkCommandBuffer cmd, VkImage img,
+    void transitionImage(VkCommandBuffer cmd, VkImage image,
         VkImageLayout currentLayout, VkImageLayout newLayout) {
         
-        VkImageMemoryBarrier2 imgBarrier {
+        VkImageMemoryBarrier2 imageBarrier {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
@@ -61,20 +61,20 @@ namespace flux::renderer::vkutil {
             .newLayout = newLayout,
         };
 
-        imgBarrier.subresourceRange = vkinit::imgSubresourceRange(
+        imageBarrier.subresourceRange = vkinit::imageSubresourceRange(
             (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
                 ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
-        imgBarrier.image = img;
+        imageBarrier.image = image;
 
         VkDependencyInfo depInfo = {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = &imgBarrier,
+            .pImageMemoryBarriers = &imageBarrier,
         };
         vkCmdPipelineBarrier2(cmd, &depInfo);
     }
 
-    void copyImgToImg(VkCommandBuffer cmd, VkImage src, VkImage dst, VkExtent2D srcSize, VkExtent2D dstSize) {
+    void copyImageToImage(VkCommandBuffer cmd, VkImage src, VkImage dst, VkExtent2D srcSize, VkExtent2D dstSize) {
         VkImageBlit2 blitRegion = { 
             .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
             .srcSubresource = {

@@ -1,14 +1,14 @@
-#include <core/engine.hpp>
+#include "engine.hpp"
 #include <common/config.hpp>
 
 #include <renderer/renderer.hpp>
 #include <input/input.hpp>
 
-#include <core/subsystems/log/log.hpp>
-#include <core/subsystems/log/log.cpp>
+#include "subsystems/log.hpp"
+#include "internal/log_impl.hpp"
 
-#include <core/subsystems/utility/utility.hpp>
-#include <core/subsystems/utility/utility.cpp>
+#include "subsystems/utility.hpp"
+#include "internal/utility_impl.hpp"
 
 void engine::init(EngineState* state) {
 

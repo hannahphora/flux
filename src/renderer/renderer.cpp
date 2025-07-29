@@ -2,11 +2,11 @@
 #include "renderer.hpp"
 
 #include <core/engine.hpp>
-#include <core/subsystems/log/log.hpp>
-#include <core/subsystems/utility/utility.hpp>
+#include <core/subsystems/log.hpp>
+#include <core/subsystems/utility.hpp>
 
-#include "images.hpp"
-#include "helpers.hpp"
+#include "internal/images.hpp"
+#include "internal/helpers.hpp"
 
 using namespace renderer;
 
@@ -28,12 +28,7 @@ bool renderer::init(RendererState* state) {
     });
 
     // create surface
-    vkCheck(glfwCreateWindowSurface(
-        state->instance,
-        state->engine->window,
-        nullptr,
-        &state->surface
-    ));
+    vkCheck(glfwCreateWindowSurface(state->instance, state->engine->window, nullptr, &state->surface));
 
     // query physical device and create device
     auto physDevSelector = vkb::PhysicalDeviceSelector{ vkbInst };
@@ -88,27 +83,27 @@ bool renderer::init(RendererState* state) {
     glfwGetWindowSize(state->engine->window, &w, &h);
     createSwapchain(state, w, h);
 
-	state->drawImg.fmt = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
-	state->drawImg.extent = { (u32)w, (u32)h, 1U };
-	VkImageUsageFlags drawImgUsages = {};
-    drawImgUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    drawImgUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    drawImgUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-    drawImgUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	state->drawImage.fmt = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
+	state->drawImage.extent = { (u32)w, (u32)h, 1U };
+	VkImageUsageFlags drawImageUsages = {};
+    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+    drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	auto rImgInfo = vkinit::imgCreateInfo(state->drawImg.fmt, drawImgUsages, state->drawImg.extent);
-	VmaAllocationCreateInfo rImgAllocInfo = { // alloc from gpu local memory
+	auto rImageInfo = vkinit::imageCreateInfo(state->drawImage.fmt, drawImageUsages, state->drawImage.extent);
+	VmaAllocationCreateInfo rImageAllocInfo = { // alloc from gpu local memory
         .usage = VMA_MEMORY_USAGE_GPU_ONLY,
         .requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
     };
-	vmaCreateImage(state->allocator, &rImgInfo, &rImgAllocInfo, &state->drawImg.img, &state->drawImg.allocation, nullptr);
+	vmaCreateImage(state->allocator, &rImageInfo, &rImageAllocInfo, &state->drawImage.image, &state->drawImage.allocation, nullptr);
 
-	auto rImgViewInfo = vkinit::imgViewCreateInfo(state->drawImg.fmt, state->drawImg.img, VK_IMAGE_ASPECT_COLOR_BIT);
-	vkCheck(vkCreateImageView(state->device, &rImgViewInfo, nullptr, &state->drawImg.view));
+	auto rImageViewInfo = vkinit::imageViewCreateInfo(state->drawImage.fmt, state->drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCheck(vkCreateImageView(state->device, &rImageViewInfo, nullptr, &state->drawImage.view));
 
 	state->deinitStack.emplace_back([state] {
-		vkDestroyImageView(state->device, state->drawImg.view, nullptr);
-		vmaDestroyImage(state->allocator, state->drawImg.img, state->drawImg.allocation);
+		vkDestroyImageView(state->device, state->drawImage.view, nullptr);
+		vmaDestroyImage(state->allocator, state->drawImage.image, state->drawImage.allocation);
 	});
 
     // init cmds
@@ -155,11 +150,11 @@ void renderer::deinit(RendererState* state) {
 void drawBg(RendererState* state, VkCommandBuffer cmd) {
     VkClearColorValue clearValue;
     float flash = std::abs(std::sin(state->frameNumber / 120.f));
-    clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+    clearValue = { { 0.f, 0.f, flash, 1.f } };
 
-    VkImageSubresourceRange clearRange = vkinit::imgSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+    VkImageSubresourceRange clearRange = vkinit::imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
 
-    vkCmdClearColorImage(cmd, state->drawImg.img, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+    vkCmdClearColorImage(cmd, state->drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
 }
 
 void renderer::draw(RendererState* state) {
@@ -169,13 +164,13 @@ void renderer::draw(RendererState* state) {
 
     utility::flushDeinitStack(&getCurrentFrame(state).deinitStack);
 
-    // request img from swapchain
-    u32 swapchainImgIndex;
+    // request image from swapchain
+    u32 swapchainImageIndex;
     vkCheck(vkAcquireNextImageKHR(
         state->device, state->swapchain,
         1000000000 /*max 1 second timeout*/,
         getCurrentFrame(state).swapchainSemaphore,
-        nullptr, &swapchainImgIndex
+        nullptr, &swapchainImageIndex
     ));
 
     // reset cmd buffer
@@ -183,26 +178,25 @@ void renderer::draw(RendererState* state) {
     vkCheck(vkResetCommandBuffer(cmd, 0));
     auto cmdBeginInfo = vkinit::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-    state->drawExtent.width = state->drawImg.extent.width;
-    state->drawExtent.height = state->drawImg.extent.height;
+    state->drawExtent.width = state->drawImage.extent.width;
+    state->drawExtent.height = state->drawImage.extent.height;
 
     // records cmds
     vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
     {
-        // transition our main draw image into general layout so we can write into it
-        // we will overwrite it all so we dont care about what was the older layout
-        vkutil::transitionImg(cmd, state->drawImg.img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        // transition main draw img to general layout for writing
+        vkutil::transitionImage(cmd, state->drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
         drawBg(state, cmd);
 
-        //transition the draw image and the swapchain image into their correct transfer layouts
-        vkutil::transitionImg(cmd, state->drawImg.img, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        // transition draw img and swapchain img to transfer layouts
+        vkutil::transitionImage(cmd, state->drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        // execute a copy from the draw image into the swapchain
-        vkutil::copyImgToImg(cmd, state->drawImg.img, state->swapchainImgs[swapchainImgIndex], state->drawExtent, state->swapchainExtent);
+        // execute a copy from draw img into the swapchain
+        vkutil::copyImageToImage(cmd, state->drawImage.image, state->swapchainImages[swapchainImageIndex], state->drawExtent, state->swapchainExtent);
 
-        // set swapchain image layout to Present so we can show it on the screen
-        vkutil::transitionImg(cmd, state->swapchainImgs[swapchainImgIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        // set swapchain img layout to present
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 	vkCheck(vkEndCommandBuffer(cmd));
 
@@ -220,7 +214,7 @@ void renderer::draw(RendererState* state) {
         .pWaitSemaphores = &getCurrentFrame(state).renderSemaphore,
         .swapchainCount = 1,
         .pSwapchains = &state->swapchain,
-        .pImageIndices = &swapchainImgIndex,
+        .pImageIndices = &swapchainImageIndex,
     };
 	vkCheck(vkQueuePresentKHR(state->graphicsQueue, &presentInfo));
 

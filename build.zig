@@ -10,14 +10,14 @@ const flags = .{
 };
 
 var b: *std.Build = undefined;
-
-const log_results = false; // TODO: move this to being a build option
+var verbose: bool = undefined;
 
 pub fn build(builder: *std.Build) !void {
     b = builder;
     const options = b.addOptions();
     const target = b.standardTargetOptions(.{});
-    const build_mode = b.option(BuildMode, "build_mode", "build mode (default = debug)") orelse .debug;
+    verbose = b.option(bool, "verbose", "enable verbose logging") orelse false;
+    const build_mode = b.option(BuildMode, "build_mode", "build mode") orelse .debug;
     options.addOption(BuildMode, "build_mode", build_mode);
 
     const flux = b.createModule(.{
@@ -28,7 +28,7 @@ pub fn build(builder: *std.Build) !void {
 
     const host = b.addExecutable(.{
         .root_module = flux,
-        .name = "runner",
+        .name = "host",
     });
     host.addCSourceFile(.{ .file = b.path("src/host.cpp"), .flags = &flags });
 
@@ -70,11 +70,11 @@ pub fn build(builder: *std.Build) !void {
     }
 
     // run host
-    const run_cmd = b.addRunArtifact(host);
-    run_cmd.step.dependOn(&b.addInstallArtifact(host, .{}).step);
-    run_cmd.step.dependOn(b.getInstallStep());
-    run_cmd.stdio = .inherit;
-    b.step("run", "Run the host").dependOn(&run_cmd.step);
+    const run = b.addRunArtifact(host);
+    run.step.dependOn(&b.addInstallArtifact(host, .{}).step);
+    run.step.dependOn(b.getInstallStep());
+    run.stdio = .inherit;
+    b.step("run", "Run the host").dependOn(&run.step);
 }
 
 fn compileShaders() !void {
@@ -87,7 +87,7 @@ fn compileShaders() !void {
     while (try walker.next()) |entry| {
         if (entry.kind == .file and std.mem.eql(u8, std.fs.path.extension(entry.basename), ".slang")) {
             const name = std.fs.path.stem(entry.basename);
-            if (log_results) std.debug.print("Found shader: {s}\n", .{name});
+            if (verbose) std.debug.print("Found shader: {s}\n", .{name});
             const source = try std.fmt.allocPrint(b.allocator, "res/shaders/{s}.slang", .{name});
             const outpath = try std.fmt.allocPrint(b.allocator, "res/shaders/{s}.spv", .{name});
 
@@ -119,7 +119,7 @@ fn addCSourceFilesRecursive(c: *std.Build.Step.Compile, path: []const u8) !void 
             (std.mem.eql(u8, std.fs.path.extension(entry.basename), ".c") or
                 std.mem.eql(u8, std.fs.path.extension(entry.basename), ".cpp")))
         {
-            if (log_results) std.debug.print("Found source file: {s}\n", .{entry.basename});
+            if (verbose) std.debug.print("Found source file: {s}\n", .{entry.basename});
             const src_path = try std.fmt.allocPrint(b.allocator, "deps/src/{s}", .{entry.path});
             c.addCSourceFile(.{ .file = b.path(src_path), .flags = &flags });
         }

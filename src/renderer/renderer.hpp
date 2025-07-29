@@ -5,7 +5,7 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vkb/VkBootstrap.h>
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc/vk_mem_alloc.h>
 
 #include <GLFW/glfw3.h>
 
@@ -27,8 +27,8 @@ namespace flux {
             DeinitStack deinitStack = {};
         };
 
-        struct AllocatedImg {
-            VkImage img = nullptr;
+        struct AllocatedImage {
+            VkImage image = nullptr;
             VkImageView view = nullptr;
             VmaAllocation allocation = nullptr;
             VkExtent3D extent = {};
@@ -59,16 +59,19 @@ namespace flux {
 
         // swapchain
         VkSwapchainKHR swapchain = nullptr;
-        VkFormat swapchainImgFormat = {};
+        VkFormat swapchainImageFormat = {};
         VkExtent2D swapchainExtent = {};
 
         // swapchain data
-        std::vector<VkImage> swapchainImgs = {};
-        std::vector<VkImageView> swapchainImgViews = {};
+        std::vector<VkImage> swapchainImages = {};
+        std::vector<VkImageView> swapchainImageViews = {};
 
         // draw data
-        renderer::AllocatedImg drawImg = {};
+        renderer::AllocatedImage drawImage = {};
         VkExtent2D drawExtent = {};
+
+        VkDescriptorSetLayout descriptorSetLayout = {};
+        VkDescriptorSet descriptorSet = {};
 
         DeinitStack deinitStack = {};
     };

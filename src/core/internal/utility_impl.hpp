@@ -1,4 +1,4 @@
-#include "utility.hpp"
+#include <core/subsystems/utility.hpp>
 
 void utility::flushDeinitStack(DeinitStack * deinitStack) {
     while (!deinitStack->empty()) {
