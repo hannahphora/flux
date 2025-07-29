@@ -1,7 +1,7 @@
 #include <common/common.hpp>
 #include <core/engine.hpp>
 
-void load_fns(), load_dl(), unload_dl();
+void load_init_fn(), load_deinit_fn(), load_update_fn(), load_dl(), unload_dl();
 typedef void (*DlFn)(EngineState*);
 DlFn init_fn = nullptr;
 DlFn deinit_fn = nullptr;
@@ -18,16 +18,18 @@ DlFn update_fn = nullptr;
 
     HINSTANCE dl = nullptr;
 
-    void load_fns() {
+    void load_init_fn() {
         if (!(init_fn = (DlFn)GetProcAddress(dl, "init"))) fputs("failed to find init fn\n", stderr);
+    }
+    void load_deinit_fn() {
         if (!(deinit_fn = (DlFn)GetProcAddress(dl, "deinit"))) fputs("failed to find deinit fn\n", stderr);
+    }
+    void load_update_fn() {
         if (!(update_fn = (DlFn)GetProcAddress(dl, "update"))) fputs("failed to find update fn\n", stderr);
     }
-
     void load_dl() {
         if (!(dl = LoadLibraryA("flux.dll"))) fputs("failed to load dl\n", stderr);
     }
-
     void unload_dl() {
         if (!FreeLibrary(dl)) fputs("failed to unload dl\n", stderr);
     }
@@ -38,7 +40,8 @@ DlFn update_fn = nullptr;
 
 i32 main() {
     load_dl();
-    load_fns();
+    load_init_fn();
+    load_update_fn();
     auto state = new EngineState;
     init_fn(state);
 
@@ -46,8 +49,7 @@ i32 main() {
     while (state->running) {
         update_fn(state);
 
-        if (kbhit()) {
-            switch (getchar_unlocked()) {
+        if (kbhit()) switch (getchar_unlocked()) {
             case 'q': { // exit
                 fputs("exiting\n", stdout);
                 state->running = false;
@@ -58,17 +60,13 @@ i32 main() {
                 unload_dl();
                 system("zig build");
                 load_dl();
-                load_fns();
+                load_update_fn();
                 break;
-            }
-            case 'h': {
-                fputs("host commands\n\th: help\n\tq: exit\n\tr: reload\n", stdout);
-                break;
-            }
             }
         }
     }
 
+    load_deinit_fn();
     deinit_fn(state);
     delete state;
     unload_dl();
