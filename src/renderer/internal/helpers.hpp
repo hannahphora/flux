@@ -26,7 +26,6 @@ namespace flux::renderer {
 
         auto vkbSwapchain = swapchainBuilder
             .use_default_format_selection()
-            //.set_desired_format({ .format = state->swapchainImageFormat, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // vsync
             .set_desired_extent(width, height)
             .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
@@ -42,7 +41,7 @@ namespace flux::renderer {
 
     void createDrawImage(RendererState* state, u32 width, u32 height) {
         state->drawImage.format = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
-        state->drawImage.extent = { (u32)width, (u32)height, 1U };
+        state->drawImage.extent = { width, height, 1U };
         VkImageUsageFlags drawImageUsages = {};
         drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -72,12 +71,7 @@ namespace flux::renderer {
         createSwapchain(state, w, h);
         createDrawImage(state, w, h);
 
-        //VkDescriptorImageInfo imgInfo = { 
-        //    .imageView = state->drawImage.view,
-        //    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        //};
-        //auto cameraWrite = vkinit::write_descriptor_image(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, _drawImageDescriptors, &imgInfo, 0);
-        //vkUpdateDescriptorSets(state->device, 1, &cameraWrite, 0, nullptr);
+        // TODO: update draw img descriptor here
     }
 
     void immediateSubmit(RendererState* state, std::function<void(VkCommandBuffer cmd)>&& fn) {
@@ -99,9 +93,7 @@ namespace flux::renderer {
 
     bool loadShaderModule(const char* path, VkDevice device, VkShaderModule* out) {
         std::ifstream file(path, std::ios::ate | std::ios::binary);
-        if (!file.is_open()) {
-            return false;
-        }
+        if (!file.is_open()) return false;
         usize fileSize = (size_t)file.tellg();
         std::vector<u32> buffer(fileSize / sizeof(u32));
         file.seekg(0);
@@ -115,12 +107,7 @@ namespace flux::renderer {
         return vkCreateShaderModule(device, &createInfo, nullptr, out) != VK_SUCCESS;
     }
 
-    TextureID storeTexture(RendererState* state, VkImageView imageView, VkSampler sampler) { return {}; }
-
-    BufferID storeBuffer(RendererState* state, VkBuffer buffer, VkBufferUsageFlagBits usage) { return {}; }
-
     void initDrawImageDescriptor(RendererState* state) {
-
         VkDescriptorImageInfo imageInfo = {
             .imageView = state->drawImage.view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
