@@ -32,7 +32,6 @@ using f64 = double;
 
 namespace flux { struct EngineState; };
 namespace flux { struct RendererState; };
-namespace flux { struct UiState; };
 namespace flux { struct InputState; };
 
 using namespace flux;

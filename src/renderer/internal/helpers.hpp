@@ -12,6 +12,10 @@ namespace flux::renderer {
         return state->frames[state->frameNumber % config::renderer::FRAME_OVERLAP];
     };
 
+}
+
+namespace flux::renderer::vkutil {
+
     void destroySwapchain(RendererState* state) {
         vkDestroySwapchainKHR(state->device, state->swapchain, nullptr);
         for (auto& imageView : state->swapchainImageViews)

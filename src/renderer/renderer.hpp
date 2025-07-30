@@ -13,6 +13,7 @@
 namespace flux::config::renderer {
     static constexpr bool ENABLE_VALIDATION_LAYERS = true;
     static constexpr u32 FRAME_OVERLAP = 2;
+    
     static constexpr usize MAX_DESCRIPTOR_COUNT = std::numeric_limits<u16>::max(); // 65536
 }
 
@@ -47,20 +48,9 @@ namespace flux::renderer {
     static constexpr u32 STORAGE_BINDING = 1;
     static constexpr u32 TEXTURE_BINDING = 2;
     static constexpr u32 STORAGE_IMAGE_BINDING = 3;
-
-    namespace ui {
-        bool init(UiState* state);
-        void deinit(UiState* state);
-    }
 }
 
 using namespace renderer;
-
-struct flux::UiState {
-    const EngineState* engine;
-    bool initialised = false;
-    DeinitStack deinitStack = {};
-};
 
 struct flux::RendererState {
     const EngineState* engine;
@@ -108,8 +98,6 @@ struct flux::RendererState {
         VkCommandPool cmdPool = nullptr;
         VkCommandBuffer cmdBuffer = nullptr;
     } immediate = {};
-
-    UiState* ui = nullptr;
 
     DeinitStack deinitStack = {};
 };

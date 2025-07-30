@@ -8,7 +8,6 @@
 
 #include "internal/images.hpp"
 #include "internal/helpers.hpp"
-#include "internal/ui_impl.hpp"
 
 using namespace renderer;
 
@@ -239,16 +238,6 @@ bool renderer::init(RendererState* state) {
     vkDestroyShaderModule(state->device, computeDrawShader, nullptr);
 	state->deinitStack.emplace_back([state] {
 		vkDestroyPipeline(state->device, state->gradientPipeline, nullptr);
-    });
-
-    // init ui
-    log::buffered("initialising ui");
-    if (!ui::init(state->ui = new UiState { .engine = state->engine }))
-        log::unbuffered("failed to init ui", log::level::ERROR);
-    state->deinitStack.emplace_back([state] {
-        log::buffered("deinitialising ui");
-        ui::deinit(state->ui);
-        delete state->ui;
     });
 
     state->initialised = true;
