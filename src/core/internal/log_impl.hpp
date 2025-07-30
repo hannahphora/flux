@@ -1,4 +1,4 @@
-#include <core/subsystems/log.hpp>
+#include <common/log.hpp>
 
 namespace flux::log {
     static char buffer[config::log::BUFFER_SIZE] = {0};

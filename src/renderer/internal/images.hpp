@@ -1,6 +1,6 @@
 #pragma once
 #include "../renderer.hpp"
-#include "helpers.hpp"
+#include "initializers.hpp"
 
 namespace flux::renderer::vkinit {
 
@@ -14,11 +14,11 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkImageCreateInfo imageCreateInfo(VkFormat fmt, VkImageUsageFlags usageFlags, VkExtent3D extent) {
+    VkImageCreateInfo imageCreateInfo(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent) {
         return {
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .imageType = VK_IMAGE_TYPE_2D,
-            .format = fmt,
+            .format = format,
             .extent = extent,
             .mipLevels = 1,
             .arrayLayers = 1,
@@ -29,13 +29,13 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkImageViewCreateInfo imageViewCreateInfo(VkFormat fmt, VkImage image, VkImageAspectFlags aspectFlags) {
+    VkImageViewCreateInfo imageViewCreateInfo(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags) {
         // build a image view for the depth image to use for rendering
         return {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = image,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = fmt,
+            .format = format,
             .subresourceRange = {
                 .aspectMask = aspectFlags,
                 .baseMipLevel = 0,
@@ -48,6 +48,7 @@ namespace flux::renderer::vkinit {
 }
 
 namespace flux::renderer::vkutil {
+    
     void transitionImage(VkCommandBuffer cmd, VkImage image,
         VkImageLayout currentLayout, VkImageLayout newLayout) {
         

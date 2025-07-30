@@ -4,11 +4,14 @@
 #include <cstdio>
 #include <cstring>
 
+#include <limits>
+#include <array>
 #include <string>
 #include <vector>
 #include <functional>
 #include <chrono>
 #include <thread>
+#include <random>
 
 using usize = unsigned long long;
 
@@ -27,12 +30,8 @@ using f64 = double;
 
 namespace flux { struct EngineState; };
 namespace flux { struct RendererState; };
-namespace flux { struct InputState; };
 namespace flux { struct UiState; };
-namespace flux { struct AudioState; };
-namespace flux { struct PhysicsState; };
-namespace flux { struct AnimationState; };
-namespace flux { struct NetworkingState; };
+namespace flux { struct InputState; };
 
 using namespace flux;
 

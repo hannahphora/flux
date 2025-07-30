@@ -4,11 +4,14 @@
 #include <renderer/renderer.hpp>
 #include <input/input.hpp>
 
-#include "subsystems/log.hpp"
+#include "common/log.hpp"
 #include "internal/log_impl.hpp"
 
-#include "subsystems/utility.hpp"
+#include "common/utility.hpp"
 #include "internal/utility_impl.hpp"
+
+#include "common/math.hpp"
+#include "internal/math_impl.hpp"
 
 void engine::init(EngineState* state) {
 
@@ -56,12 +59,14 @@ void engine::init(EngineState* state) {
         delete state->input;
     });
 
+    state->initialised = true;
     log::flush();
 }
 
 void engine::deinit(EngineState* state) {
     utility::flushDeinitStack(&state->deinitStack);
     log::flush();
+    state->initialised = false;
 }
 
 void engine::update(EngineState* state) {

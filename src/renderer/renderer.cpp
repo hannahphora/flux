@@ -2,11 +2,13 @@
 #include "renderer.hpp"
 
 #include <core/engine.hpp>
-#include <core/subsystems/log.hpp>
-#include <core/subsystems/utility.hpp>
+
+#include <common/log.hpp>
+#include <common/utility.hpp>
 
 #include "internal/images.hpp"
 #include "internal/helpers.hpp"
+#include "internal/ui_impl.hpp"
 
 using namespace renderer;
 
@@ -42,6 +44,13 @@ bool renderer::init(RendererState* state) {
         .set_required_features_12({
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
             .descriptorIndexing = true,
+            .shaderUniformBufferArrayNonUniformIndexing = true,
+            .shaderSampledImageArrayNonUniformIndexing = true,
+            .shaderStorageBufferArrayNonUniformIndexing = true,
+            .descriptorBindingUniformBufferUpdateAfterBind = true,
+            .descriptorBindingSampledImageUpdateAfterBind = true,
+            .descriptorBindingStorageBufferUpdateAfterBind = true,
+            .descriptorBindingPartiallyBound = true,
             .bufferDeviceAddress = true,
         })
         .set_surface(state->surface)
@@ -83,7 +92,7 @@ bool renderer::init(RendererState* state) {
     glfwGetWindowSize(state->engine->window, &w, &h);
     createSwapchain(state, w, h);
 
-	state->drawImage.fmt = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
+	state->drawImage.format = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
 	state->drawImage.extent = { (u32)w, (u32)h, 1U };
 	VkImageUsageFlags drawImageUsages = {};
     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -91,14 +100,14 @@ bool renderer::init(RendererState* state) {
     drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
     drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	auto rImageInfo = vkinit::imageCreateInfo(state->drawImage.fmt, drawImageUsages, state->drawImage.extent);
+	auto rImageInfo = vkinit::imageCreateInfo(state->drawImage.format, drawImageUsages, state->drawImage.extent);
 	VmaAllocationCreateInfo rImageAllocInfo = { // alloc from gpu local memory
         .usage = VMA_MEMORY_USAGE_GPU_ONLY,
         .requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
     };
 	vmaCreateImage(state->allocator, &rImageInfo, &rImageAllocInfo, &state->drawImage.image, &state->drawImage.allocation, nullptr);
 
-	auto rImageViewInfo = vkinit::imageViewCreateInfo(state->drawImage.fmt, state->drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	auto rImageViewInfo = vkinit::imageViewCreateInfo(state->drawImage.format, state->drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
 	vkCheck(vkCreateImageView(state->device, &rImageViewInfo, nullptr, &state->drawImage.view));
 
 	state->deinitStack.emplace_back([state] {
@@ -114,6 +123,13 @@ bool renderer::init(RendererState* state) {
 		auto cmdAllocInfo = vkinit::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
 		vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->frames[i].primaryCmdBuffer));
 	}
+    // immediate cmd
+    vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->immediate.cmdPool));
+	auto cmdAllocInfo = vkinit::cmdBufferAllocInfo(state->immediate.cmdPool, 1);
+	vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->immediate.cmdBuffer));
+	state->deinitStack.emplace_back([state] { 
+	    vkDestroyCommandPool(state->device, state->immediate.cmdPool, nullptr);
+	});
 
     // init sync structures
     auto fenceCreateInfo = vkinit::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -123,6 +139,105 @@ bool renderer::init(RendererState* state) {
         vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].swapchainSemaphore));
         vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].renderSemaphore));
     }
+    // immediate fence
+    vkCheck(vkCreateFence(state->device, &fenceCreateInfo, nullptr, &state->immediate.fence));
+	state->deinitStack.emplace_back([state] {
+        vkDestroyFence(state->device, state->immediate.fence, nullptr);
+    });
+
+    state->deinitStack.emplace_back([state] { // deinit all per frame data
+        for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
+            vkDestroyCommandPool(state->device, state->frames[i].cmdPool, nullptr);
+            vkDestroyFence(state->device, state->frames[i].renderFence, nullptr);
+            vkDestroySemaphore(state->device, state->frames[i].renderSemaphore, nullptr);
+            vkDestroySemaphore(state->device, state->frames[i].swapchainSemaphore, nullptr);
+            utility::flushDeinitStack(&state->frames[i].deinitStack);
+        }
+    });
+
+    // init descriptors
+    std::array<VkDescriptorSetLayoutBinding, 3> descriptorBindings = {};
+    std::array<VkDescriptorBindingFlags, 3> descriptorBindingFlags = {};
+    std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = {};
+    std::array<VkDescriptorType, 3> descriptorTypes = {
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+    };
+    // descriptor set layout
+    for (u32 i = 0; i < descriptorBindings.size(); i++) {
+        descriptorBindings[i] = {
+            .binding = i,
+            .descriptorType = descriptorTypes[i],
+            .descriptorCount = config::renderer::MAX_DESCRIPTOR_COUNT,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+        };
+        descriptorBindingFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+        descriptorPoolSizes[i] = { descriptorTypes[i], config::renderer::MAX_DESCRIPTOR_COUNT };
+    }
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+        .bindingCount = descriptorBindingFlags.size(),
+        .pBindingFlags = descriptorBindingFlags.data(),
+    };
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .pNext = &bindingFlagsInfo,
+        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+        .bindingCount = descriptorBindings.size(),
+        .pBindings = descriptorBindings.data(),
+    };
+    vkCreateDescriptorSetLayout(state->device, &descriptorSetLayoutCreateInfo, nullptr, &state->bindlessDescriptorSetLayout);
+    // descriptor pool
+    VkDescriptorPoolCreateInfo poolInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+        .maxSets = 1,
+        .poolSizeCount = descriptorPoolSizes.size(),
+        .pPoolSizes = descriptorPoolSizes.data(),
+    };
+    vkCreateDescriptorPool(state->device, &poolInfo, nullptr, &state->descriptorPool);
+    // descriptor set
+    VkDescriptorSetAllocateInfo allocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = state->descriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &state->bindlessDescriptorSetLayout,
+    };
+    vkAllocateDescriptorSets(state->device, &allocateInfo, &state->bindlessDescriptorSet);
+    state->deinitStack.emplace_back([state] {
+        vkDestroyDescriptorPool(state->device, state->descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(state->device, state->bindlessDescriptorSetLayout, nullptr);
+    });
+
+    // init pipelines
+    VkPushConstantRange pushConstantRange = {
+        .stageFlags = VK_SHADER_STAGE_ALL,
+        .offset = 0U,
+        .size = 128U,
+    };
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &state->bindlessDescriptorSetLayout,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pushConstantRange,
+    };
+    vkCreatePipelineLayout(state->device, &pipelineLayoutInfo, nullptr, &state->pipelineLayout);
+    state->deinitStack.emplace_back([state] {
+        vkDestroyPipelineLayout(state->device, state->pipelineLayout, nullptr);
+		vkDestroyPipeline(state->device, state->pipeline, nullptr);
+    });
+
+    // init ui
+    log::buffered("initialising ui");
+    if (!ui::init(state->ui = new UiState { .engine = state->engine }))
+        log::unbuffered("failed to init ui", log::level::ERROR);
+    state->deinitStack.emplace_back([state] {
+        log::buffered("deinitialising ui");
+        ui::deinit(state->ui);
+        delete state->ui;
+    });
 
     state->initialised = true;
     return true;
@@ -130,19 +245,6 @@ bool renderer::init(RendererState* state) {
 
 void renderer::deinit(RendererState* state) {
     vkDeviceWaitIdle(state->device);
-
-    // free perframe structures and deinit stack
-    for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
-        vkDestroyCommandPool(state->device, state->frames[i].cmdPool, nullptr);
-
-        vkDestroyFence(state->device, state->frames[i].renderFence, nullptr);
-        vkDestroySemaphore(state->device, state->frames[i].renderSemaphore, nullptr);
-        vkDestroySemaphore(state->device, state->frames[i].swapchainSemaphore, nullptr);
-
-        utility::flushDeinitStack(&state->frames[i].deinitStack);
-    }
-
-
     utility::flushDeinitStack(&state->deinitStack);
     state->initialised = false;
 }
