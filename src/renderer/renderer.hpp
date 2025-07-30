@@ -7,9 +7,14 @@
 #include <vulkan/vk_enum_string_helper.h>
 #include <vkb/VkBootstrap.h>
 #include <vk_mem_alloc/vk_mem_alloc.h>
-#include <clay/clay.h>
 
 #include <GLFW/glfw3.h>
+
+namespace flux::config::renderer {
+    static constexpr bool ENABLE_VALIDATION_LAYERS = true;
+    static constexpr u32 FRAME_OVERLAP = 2;
+    static constexpr usize MAX_DESCRIPTOR_COUNT = std::numeric_limits<u16>::max(); // 65536
+}
 
 namespace flux::renderer {
     bool init(RendererState* state);
@@ -19,7 +24,6 @@ namespace flux::renderer {
     struct FrameData {
         VkCommandPool cmdPool = nullptr;
         VkCommandBuffer primaryCmdBuffer = nullptr;
-        // sync objects
         VkSemaphore swapchainSemaphore = nullptr;
         VkSemaphore renderSemaphore = nullptr;
         VkFence renderFence = nullptr;
@@ -35,13 +39,14 @@ namespace flux::renderer {
         VkFormat format = {};
     };
 
-    enum class WriteImageID : u32 { Invalid = std::numeric_limits<u32>::max() };
     enum class TextureID : u32 { Invalid = std::numeric_limits<u32>::max() };
     enum class BufferID : u32 { Invalid = std::numeric_limits<u32>::max() };
+    enum class StorageImageID : u32 { Invalid = std::numeric_limits<u32>::max() };
 
-    static constexpr u32 UniformBinding = 0;
-    static constexpr u32 StorageBinding = 1;
-    static constexpr u32 TextureBinding = 2;
+    static constexpr u32 UNIFORM_BINDING = 0;
+    static constexpr u32 STORAGE_BINDING = 1;
+    static constexpr u32 TEXTURE_BINDING = 2;
+    static constexpr u32 STORAGE_IMAGE_BINDING = 3;
 
     namespace ui {
         bool init(UiState* state);
@@ -93,8 +98,7 @@ struct flux::RendererState {
     std::vector<VkImage> swapchainImages = {};
     std::vector<VkImageView> swapchainImageViews = {};
     renderer::AllocatedImage drawImage = {};
-    renderer::TextureID drawImageID = {};
-    VkSampler drawImageSampler = nullptr;
+    renderer::StorageImageID drawImageID = {};
 
     // immediate submit structures
     struct {

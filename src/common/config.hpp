@@ -15,14 +15,4 @@ namespace flux::config {
         static constexpr usize BUFFER_FLUSH_CAP = BUFFER_SIZE * .75f;
     };
 
-    namespace renderer {
-        static constexpr bool ENABLE_VALIDATION_LAYERS = true;
-        static constexpr u32 FRAME_OVERLAP = 2;
-        static constexpr usize MAX_DESCRIPTOR_COUNT = std::numeric_limits<u16>::max(); // 65536
-    };
-
-    namespace input {
-        
-    };
-
 };

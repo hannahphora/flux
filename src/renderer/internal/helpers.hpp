@@ -46,7 +46,7 @@ namespace flux::renderer {
         VkImageUsageFlags drawImageUsages = {};
         drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_SAMPLED_BIT;
+        drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
         drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
         auto imageInfo = vkinit::imageCreateInfo(state->drawImage.format, drawImageUsages, state->drawImage.extent);
@@ -121,31 +121,17 @@ namespace flux::renderer {
 
     void initDrawImageDescriptor(RendererState* state) {
 
-        VkSamplerCreateInfo samplerInfo = {
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-            .magFilter = VK_FILTER_LINEAR,
-            .minFilter = VK_FILTER_LINEAR,
-            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .anisotropyEnable = false,
-            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-
-        };
-        vkCreateSampler(state->device, &samplerInfo, nullptr, &state->drawImageSampler);
-
         VkDescriptorImageInfo imageInfo = {
-            .sampler = state->drawImageSampler,
             .imageView = state->drawImage.view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
         VkWriteDescriptorSet drawImageWrite = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = state->bindlessDescriptorSet,
-            .dstBinding = (u32)TextureBinding,
+            .dstBinding = (u32)STORAGE_IMAGE_BINDING,
             .dstArrayElement = (u32)state->drawImageID,
             .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             .pImageInfo = &imageInfo,
         };
         vkUpdateDescriptorSets(state->device, 1, &drawImageWrite, 0, nullptr);

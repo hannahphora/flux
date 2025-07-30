@@ -143,10 +143,11 @@ bool renderer::init(RendererState* state) {
     });
 
     // init descriptors set
-    std::array<VkDescriptorType, 3> descriptorTypes = {
+    std::array<VkDescriptorType, 4> descriptorTypes = {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     };
     std::array<VkDescriptorSetLayoutBinding, descriptorTypes.size()> descriptorBindings = {};
     std::array<VkDescriptorBindingFlags, descriptorTypes.size()> descriptorBindingFlags = {};
@@ -198,7 +199,7 @@ bool renderer::init(RendererState* state) {
     });
 
     // create draw img descriptor
-    state->drawImageID = (TextureID)0;
+    state->drawImageID = (StorageImageID)0;
     initDrawImageDescriptor(state);
 
     // init pipelines
@@ -264,13 +265,7 @@ void renderer::deinit(RendererState* state) {
 void drawBg(RendererState* state, VkCommandBuffer cmd) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->gradientPipeline);
 	// bind the descriptor set containing the draw image for the compute pipeline
-	vkCmdBindDescriptorSets(
-        cmd,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        state->pipelineLayout,
-        0, 1, &state->bindlessDescriptorSet,
-        0, nullptr
-    );
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->pipelineLayout, 0, 1, &state->bindlessDescriptorSet, 0, nullptr);
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch(cmd, std::ceil(state->drawExtent.width / 16.0), std::ceil(state->drawExtent.height / 16.0), 1);
 }
