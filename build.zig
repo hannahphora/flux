@@ -74,6 +74,7 @@ pub fn build(builder: *std.Build) !void {
     run.step.dependOn(&b.addInstallArtifact(host, .{}).step);
     run.step.dependOn(b.getInstallStep());
     run.stdio = .inherit;
+    run.setCwd(host.getEmittedBinDirectory());
     b.step("run", "Run the host").dependOn(&run.step);
 }
 

@@ -221,7 +221,7 @@ bool renderer::init(RendererState* state) {
 
     // create gradient pipeline
     VkShaderModule computeDrawShader;
-	if (!loadShaderModule("zig-out/bin/res/shaders/gradient.spv", state->device, &computeDrawShader))
+	if (!loadShaderModule("res/shaders/gradient.spv", state->device, &computeDrawShader))
         log::unbuffered("error creating compute shader module", log::level::WARNING);
 	VkPipelineShaderStageCreateInfo stageinfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
