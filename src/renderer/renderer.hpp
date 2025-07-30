@@ -94,6 +94,7 @@ struct flux::RendererState {
     std::vector<VkImageView> swapchainImageViews = {};
     renderer::AllocatedImage drawImage = {};
     renderer::TextureID drawImageID = {};
+    VkSampler drawImageSampler = nullptr;
 
     // immediate submit structures
     struct {
