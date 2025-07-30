@@ -218,7 +218,6 @@ bool renderer::init(RendererState* state) {
     vkCreatePipelineLayout(state->device, &pipelineLayoutInfo, nullptr, &state->pipelineLayout);
     state->deinitStack.emplace_back([state] {
         vkDestroyPipelineLayout(state->device, state->pipelineLayout, nullptr);
-		vkDestroyPipeline(state->device, state->gradientPipeline, nullptr);
     });
 
     // create gradient pipeline

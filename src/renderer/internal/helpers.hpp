@@ -104,7 +104,7 @@ namespace flux::renderer {
             .codeSize = buffer.size() * sizeof(u32), // size in bytes
             .pCode = buffer.data(),
         };
-        return vkCreateShaderModule(device, &createInfo, nullptr, out) != VK_SUCCESS;
+        return vkCreateShaderModule(device, &createInfo, nullptr, out) == VK_SUCCESS;
     }
 
     void initDrawImageDescriptor(RendererState* state) {

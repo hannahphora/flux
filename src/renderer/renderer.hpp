@@ -54,6 +54,8 @@ namespace flux::renderer {
     }
 }
 
+using namespace renderer;
+
 struct flux::UiState {
     const EngineState* engine;
     bool initialised = false;
@@ -71,7 +73,7 @@ struct flux::RendererState {
     VmaAllocator allocator = nullptr;
 
     usize frameNumber = 0;
-    renderer::FrameData frames[config::renderer::FRAME_OVERLAP];
+    FrameData frames[config::renderer::FRAME_OVERLAP];
 
     VkQueue graphicsQueue = nullptr;
     VkQueue computeQueue = nullptr;
@@ -97,8 +99,8 @@ struct flux::RendererState {
     
     std::vector<VkImage> swapchainImages = {};
     std::vector<VkImageView> swapchainImageViews = {};
-    renderer::AllocatedImage drawImage = {};
-    renderer::StorageImageID drawImageID = {};
+    AllocatedImage drawImage = {};
+    StorageImageID drawImageID = {};
 
     // immediate submit structures
     struct {
