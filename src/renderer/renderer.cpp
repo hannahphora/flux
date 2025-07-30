@@ -143,14 +143,14 @@ bool renderer::init(RendererState* state) {
     });
 
     // init descriptors set
-    std::array<VkDescriptorSetLayoutBinding, 3> descriptorBindings = {};
-    std::array<VkDescriptorBindingFlags, 3> descriptorBindingFlags = {};
-    std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = {};
     std::array<VkDescriptorType, 3> descriptorTypes = {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     };
+    std::array<VkDescriptorSetLayoutBinding, descriptorTypes.size()> descriptorBindings = {};
+    std::array<VkDescriptorBindingFlags, descriptorTypes.size()> descriptorBindingFlags = {};
+    std::array<VkDescriptorPoolSize, descriptorTypes.size()> descriptorPoolSizes = {};
     // descriptor set layout
     for (u32 i = 0; i < descriptorBindings.size(); i++) {
         descriptorBindings[i] = {
