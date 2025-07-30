@@ -49,8 +49,10 @@ bool renderer::init(RendererState* state) {
             .shaderStorageBufferArrayNonUniformIndexing = true,
             .descriptorBindingUniformBufferUpdateAfterBind = true,
             .descriptorBindingSampledImageUpdateAfterBind = true,
+            .descriptorBindingStorageImageUpdateAfterBind = true,
             .descriptorBindingStorageBufferUpdateAfterBind = true,
             .descriptorBindingPartiallyBound = true,
+            .runtimeDescriptorArray = true,
             .bufferDeviceAddress = true,
         })
         .set_surface(state->surface)
@@ -87,29 +89,13 @@ bool renderer::init(RendererState* state) {
     state->computeQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::compute).value();
     state->transferQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::transfer).value();
     
-    // init swapchain
-    i32 w, h; // get window size
-    glfwGetWindowSize(state->engine->window, &w, &h);
+    // init swapchain & draw img
+    auto [w, h] = utility::getWindowSize(state->engine);
     createSwapchain(state, w, h);
-
-	state->drawImage.format = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
-	state->drawImage.extent = { (u32)w, (u32)h, 1U };
-	VkImageUsageFlags drawImageUsages = {};
-    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-    drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-	auto rImageInfo = vkinit::imageCreateInfo(state->drawImage.format, drawImageUsages, state->drawImage.extent);
-	VmaAllocationCreateInfo rImageAllocInfo = { // alloc from gpu local memory
-        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
-        .requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-    };
-	vmaCreateImage(state->allocator, &rImageInfo, &rImageAllocInfo, &state->drawImage.image, &state->drawImage.allocation, nullptr);
-
-	auto rImageViewInfo = vkinit::imageViewCreateInfo(state->drawImage.format, state->drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-	vkCheck(vkCreateImageView(state->device, &rImageViewInfo, nullptr, &state->drawImage.view));
-
+    state->deinitStack.emplace_back([state] {
+        destroySwapchain(state);
+    });
+    createDrawImage(state, w, h);
 	state->deinitStack.emplace_back([state] {
 		vkDestroyImageView(state->device, state->drawImage.view, nullptr);
 		vmaDestroyImage(state->allocator, state->drawImage.image, state->drawImage.allocation);
@@ -145,7 +131,8 @@ bool renderer::init(RendererState* state) {
         vkDestroyFence(state->device, state->immediate.fence, nullptr);
     });
 
-    state->deinitStack.emplace_back([state] { // deinit all per frame data
+    // deinit all per frame data
+    state->deinitStack.emplace_back([state] {
         for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
             vkDestroyCommandPool(state->device, state->frames[i].cmdPool, nullptr);
             vkDestroyFence(state->device, state->frames[i].renderFence, nullptr);
@@ -155,14 +142,14 @@ bool renderer::init(RendererState* state) {
         }
     });
 
-    // init descriptors
+    // init descriptors set
     std::array<VkDescriptorSetLayoutBinding, 3> descriptorBindings = {};
     std::array<VkDescriptorBindingFlags, 3> descriptorBindingFlags = {};
     std::array<VkDescriptorPoolSize, 3> descriptorPoolSizes = {};
     std::array<VkDescriptorType, 3> descriptorTypes = {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     };
     // descriptor set layout
     for (u32 i = 0; i < descriptorBindings.size(); i++) {
@@ -210,6 +197,10 @@ bool renderer::init(RendererState* state) {
         vkDestroyDescriptorSetLayout(state->device, state->bindlessDescriptorSetLayout, nullptr);
     });
 
+    // create draw img descriptor
+    state->drawImageID = (TextureID)0;
+    initDrawImageDescriptor(state);
+
     // init pipelines
     VkPushConstantRange pushConstantRange = {
         .stageFlags = VK_SHADER_STAGE_ALL,
@@ -226,7 +217,28 @@ bool renderer::init(RendererState* state) {
     vkCreatePipelineLayout(state->device, &pipelineLayoutInfo, nullptr, &state->pipelineLayout);
     state->deinitStack.emplace_back([state] {
         vkDestroyPipelineLayout(state->device, state->pipelineLayout, nullptr);
-		vkDestroyPipeline(state->device, state->pipeline, nullptr);
+		vkDestroyPipeline(state->device, state->gradientPipeline, nullptr);
+    });
+
+    // create gradient pipeline
+    VkShaderModule computeDrawShader;
+	if (!loadShaderModule("zig-out/bin/res/shaders/gradient.spv", state->device, &computeDrawShader))
+        log::unbuffered("error creating compute shader module", log::level::WARNING);
+	VkPipelineShaderStageCreateInfo stageinfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = computeDrawShader,
+        .pName = "main",
+    };
+	VkComputePipelineCreateInfo computePipelineCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = stageinfo,
+        .layout = state->pipelineLayout,
+    };
+	vkCheck(vkCreateComputePipelines(state->device, nullptr, 1, &computePipelineCreateInfo, nullptr, &state->gradientPipeline));
+    vkDestroyShaderModule(state->device, computeDrawShader, nullptr);
+	state->deinitStack.emplace_back([state] {
+		vkDestroyPipeline(state->device, state->gradientPipeline, nullptr);
     });
 
     // init ui
@@ -250,13 +262,17 @@ void renderer::deinit(RendererState* state) {
 }
 
 void drawBg(RendererState* state, VkCommandBuffer cmd) {
-    VkClearColorValue clearValue;
-    float flash = std::abs(std::sin(state->frameNumber / 120.f));
-    clearValue = { { 0.f, 0.f, flash, 1.f } };
-
-    VkImageSubresourceRange clearRange = vkinit::imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
-
-    vkCmdClearColorImage(cmd, state->drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->gradientPipeline);
+	// bind the descriptor set containing the draw image for the compute pipeline
+	vkCmdBindDescriptorSets(
+        cmd,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        state->pipelineLayout,
+        0, 1, &state->bindlessDescriptorSet,
+        0, nullptr
+    );
+	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+	vkCmdDispatch(cmd, std::ceil(state->drawExtent.width / 16.0), std::ceil(state->drawExtent.height / 16.0), 1);
 }
 
 void renderer::draw(RendererState* state) {

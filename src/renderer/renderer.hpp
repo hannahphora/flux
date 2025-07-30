@@ -35,8 +35,13 @@ namespace flux::renderer {
         VkFormat format = {};
     };
 
-    enum class TextureHandle : u32 { Invalid = std::numeric_limits<u32>::max() };
-    enum class BufferHandle : u32 { Invalid = std::numeric_limits<u32>::max() };
+    enum class WriteImageID : u32 { Invalid = std::numeric_limits<u32>::max() };
+    enum class TextureID : u32 { Invalid = std::numeric_limits<u32>::max() };
+    enum class BufferID : u32 { Invalid = std::numeric_limits<u32>::max() };
+
+    static constexpr u32 UniformBinding = 0;
+    static constexpr u32 StorageBinding = 1;
+    static constexpr u32 TextureBinding = 2;
 
     namespace ui {
         bool init(UiState* state);
@@ -77,8 +82,8 @@ struct flux::RendererState {
     VkExtent2D drawExtent = {};
 
     // pipelines
-    VkPipeline pipeline = nullptr;
     VkPipelineLayout pipelineLayout = nullptr;
+    VkPipeline gradientPipeline = nullptr;
 
     // descriptors
     VkDescriptorSet bindlessDescriptorSet = {};
@@ -88,6 +93,7 @@ struct flux::RendererState {
     std::vector<VkImage> swapchainImages = {};
     std::vector<VkImageView> swapchainImageViews = {};
     renderer::AllocatedImage drawImage = {};
+    renderer::TextureID drawImageID = {};
 
     // immediate submit structures
     struct {

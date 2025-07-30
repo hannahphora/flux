@@ -80,7 +80,6 @@ pub fn build(builder: *std.Build) !void {
 fn compileShaders() !void {
     var dir = try b.build_root.handle.openDir("res/shaders", .{ .iterate = true });
     defer dir.close();
-
     var walker = try dir.walk(b.allocator);
     defer walker.deinit();
 
@@ -95,8 +94,6 @@ fn compileShaders() !void {
             shader_compilation.addArgs(&.{
                 "-target",
                 "spirv",
-                "-profile",
-                "spirv_1_4",
                 "-fvk-use-entrypoint-name",
                 "-o",
             });
@@ -110,7 +107,6 @@ fn compileShaders() !void {
 fn addCSourceFilesRecursive(c: *std.Build.Step.Compile, path: []const u8) !void {
     var dir = try b.build_root.handle.openDir(path, .{ .iterate = true });
     defer dir.close();
-
     var walker = try dir.walk(b.allocator);
     defer walker.deinit();
 

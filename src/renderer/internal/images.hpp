@@ -22,8 +22,7 @@ namespace flux::renderer::vkinit {
             .extent = extent,
             .mipLevels = 1,
             .arrayLayers = 1,
-            // for MSAA, default to 1 sample ppx
-            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .samples = VK_SAMPLE_COUNT_1_BIT, // for MSAA, default to 1 sample ppx
             .tiling = VK_IMAGE_TILING_OPTIMAL, // OPTIMAL for smallest size on gpu, LINEAR for cpu readback
             .usage = usageFlags,
         };
@@ -48,7 +47,7 @@ namespace flux::renderer::vkinit {
 }
 
 namespace flux::renderer::vkutil {
-    
+
     void transitionImage(VkCommandBuffer cmd, VkImage image,
         VkImageLayout currentLayout, VkImageLayout newLayout) {
         

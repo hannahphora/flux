@@ -12,6 +12,8 @@
 #include <chrono>
 #include <thread>
 #include <random>
+#include <fstream>
+#include <filesystem>
 
 using usize = unsigned long long;
 
