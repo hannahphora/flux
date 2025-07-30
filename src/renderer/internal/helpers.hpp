@@ -128,14 +128,14 @@ namespace flux::renderer {
             .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .anisotropyEnable = true,
+            .anisotropyEnable = false,
             .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 
         };
         vkCreateSampler(state->device, &samplerInfo, nullptr, &state->drawImageSampler);
 
         VkDescriptorImageInfo imageInfo = {
-            .sampler = sampler,
+            .sampler = state->drawImageSampler,
             .imageView = state->drawImage.view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
