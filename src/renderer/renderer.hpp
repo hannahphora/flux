@@ -59,6 +59,7 @@ namespace flux::renderer {
     struct Buffer {
         VmaAllocation allocation = nullptr;
         BufferId id = BufferId::INVALID;
+        VkDescriptorBufferInfo descriptorInfo = {};
     };
 
     struct Texture {
@@ -69,6 +70,7 @@ namespace flux::renderer {
         VkExtent3D extent = {};
         VkFormat format = {};
         TextureId id = TextureId::INVALID;
+        VkDescriptorImageInfo descriptorInfo = {};
     };
 
     struct Image {
@@ -78,6 +80,7 @@ namespace flux::renderer {
         VkExtent3D extent = {};
         VkFormat format = {};
         ImageId id = ImageId::INVALID;
+        VkDescriptorImageInfo descriptorInfo = {};
     };
 
     struct RendererState {

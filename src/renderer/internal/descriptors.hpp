@@ -85,7 +85,7 @@ namespace flux::renderer::vkutil {
             state->availableBufferIds.pop_back();
         }
         else buffer.id = (BufferId)++state->currentBufferId;
-        VkDescriptorBufferInfo bufferInfo = {};
+        buffer.descriptorInfo = {};
         state->pendingWriteDescriptors.push_back({
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = state->globalDescriptorSet,
@@ -93,7 +93,7 @@ namespace flux::renderer::vkutil {
             .dstArrayElement = (u32)buffer.id,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &bufferInfo,
+            .pBufferInfo = &buffer.descriptorInfo,
         });
     }
 
@@ -104,7 +104,7 @@ namespace flux::renderer::vkutil {
             state->availableTextureIds.pop_back();
         }
         else texture.id = (TextureId)++state->currentTextureId;
-        VkDescriptorImageInfo imageInfo = {
+        texture.descriptorInfo = {
             .sampler = texture.sampler,
             .imageView = texture.view,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -116,7 +116,7 @@ namespace flux::renderer::vkutil {
             .dstArrayElement = (u32)texture.id,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &imageInfo,
+            .pImageInfo = &texture.descriptorInfo,
         });
     }
 
@@ -127,7 +127,7 @@ namespace flux::renderer::vkutil {
             state->availableImageIds.pop_back();
         }
         else image.id = (ImageId)++state->currentImageId;
-        VkDescriptorImageInfo imageInfo = {
+        image.descriptorInfo = {
             .imageView = image.view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
@@ -138,7 +138,7 @@ namespace flux::renderer::vkutil {
             .dstArrayElement = (u32)image.id,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .pImageInfo = &imageInfo,
+            .pImageInfo = &image.descriptorInfo,
         });
     }
 

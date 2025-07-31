@@ -26,7 +26,8 @@ bool renderer::init(RendererState* state) {
     state->instance = vkbInstance.instance;
     state->debugMessenger = vkbInstance.debug_messenger;
     state->deinitStack.emplace_back([state] {
-        vkb::destroy_debug_utils_messenger(state->instance, state->debugMessenger);
+        auto destroyDbgMsger = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(state->instance, "vkDestroyDebugUtilsMessengerEXT");
+        destroyDbgMsger(state->instance, state->debugMessenger, nullptr);
 		vkDestroyInstance(state->instance, nullptr);
     });
 
