@@ -13,7 +13,7 @@ namespace flux::renderer::vkutil {
 
     void initDescriptors(RendererState* state) {
 
-        std::array<VkDescriptorType, 5> types = {
+        static constexpr std::array<VkDescriptorType, 5> types = {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -67,7 +67,7 @@ namespace flux::renderer::vkutil {
             .pSetLayouts = &state->globalDescriptorSetLayout,
         };
         vkAllocateDescriptorSets(state->device, &allocateInfo, &state->globalDescriptorSet);
-        
+
         state->deinitStack.emplace_back([state] {
             vkDestroyDescriptorPool(state->device, state->globalDescriptorPool, nullptr);
             vkDestroyDescriptorSetLayout(state->device, state->globalDescriptorSetLayout, nullptr);
