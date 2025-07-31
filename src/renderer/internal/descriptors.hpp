@@ -12,7 +12,6 @@
 namespace flux::renderer::vkutil {
 
     void initDescriptors(RendererState* state) {
-
         static constexpr std::array<VkDescriptorType, 5> types = {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -71,6 +70,75 @@ namespace flux::renderer::vkutil {
         state->deinitStack.emplace_back([state] {
             vkDestroyDescriptorPool(state->device, state->globalDescriptorPool, nullptr);
             vkDestroyDescriptorSetLayout(state->device, state->globalDescriptorSetLayout, nullptr);
+        });
+    }
+
+    void updatePendingWriteDescriptors(RendererState* state) {
+        vkUpdateDescriptorSets(state->device, state->pendingWriteDescriptors.size(), state->pendingWriteDescriptors.data(), 0, nullptr);
+        state->pendingWriteDescriptors.clear();
+    }
+
+    void loadBufferDescriptor(RendererState* state, Buffer& buffer) {
+        if (buffer.id != BufferId::INVALID) return;
+        if (!state->availableBufferIds.empty()) {
+            buffer.id = state->availableBufferIds.back();
+            state->availableBufferIds.pop_back();
+        }
+        else buffer.id = (BufferId)++state->currentBufferId;
+        VkDescriptorBufferInfo bufferInfo = {};
+        state->pendingWriteDescriptors.push_back({
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = state->globalDescriptorSet,
+            .dstBinding = (u32)Binding::BUFFER,
+            .dstArrayElement = (u32)buffer.id,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .pBufferInfo = &bufferInfo,
+        });
+    }
+
+    void loadTextureDescriptor(RendererState* state, Texture& texture) {
+        if (texture.id != TextureId::INVALID) return;
+        if (!state->availableTextureIds.empty()) {
+            texture.id = state->availableTextureIds.back();
+            state->availableTextureIds.pop_back();
+        }
+        else texture.id = (TextureId)++state->currentTextureId;
+        VkDescriptorImageInfo imageInfo = {
+            .sampler = texture.sampler,
+            .imageView = texture.view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        state->pendingWriteDescriptors.push_back({
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = state->globalDescriptorSet,
+            .dstBinding = (u32)Binding::TEXTURE,
+            .dstArrayElement = (u32)texture.id,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &imageInfo,
+        });
+    }
+
+    void loadImageDescriptor(RendererState* state, Image& image) {
+        if (image.id != ImageId::INVALID) return;
+        if (!state->availableImageIds.empty()) {
+            image.id = state->availableImageIds.back();
+            state->availableImageIds.pop_back();
+        }
+        else image.id = (ImageId)++state->currentImageId;
+        VkDescriptorImageInfo imageInfo = {
+            .imageView = image.view,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+        state->pendingWriteDescriptors.push_back({
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = state->globalDescriptorSet,
+            .dstBinding = (u32)Binding::IMAGE,
+            .dstArrayElement = (u32)image.id,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .pImageInfo = &imageInfo,
         });
     }
 

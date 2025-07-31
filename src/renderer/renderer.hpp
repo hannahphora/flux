@@ -25,7 +25,7 @@ namespace flux::config::renderer {
 
 namespace flux::renderer {
     namespace ui { extern void loadImguiContext(RendererState* state); }
-    
+
     bool init(RendererState* state);
     void deinit(RendererState* state);
     void draw(RendererState* state);
@@ -38,30 +38,46 @@ namespace flux::renderer {
         DeinitStack deinitStack = {};
     };
 
-    struct AllocatedImage {
-        VkImage image = nullptr;
-        VkImageView view = nullptr;
-        VmaAllocation allocation = nullptr;
-        VkExtent3D extent = {};
-        VkFormat format = {};
-    };
-
     struct ComputePushConstant {
         u32 textureID;
     };
 
-    enum class UniformId : u32 { Invalid = std::numeric_limits<u32>::max() };
-    enum class BufferId : u32 { Invalid = std::numeric_limits<u32>::max() };
-    enum class TextureId : u32 { Invalid = std::numeric_limits<u32>::max() };
-    enum class ImageId : u32 { Invalid = std::numeric_limits<u32>::max() };
-    enum class AccelerationStructureId : u32 { Invalid = std::numeric_limits<u32>::max() };
+    enum class UniformId : u32 { INVALID = std::numeric_limits<u32>::max() };
+    enum class BufferId : u32 { INVALID = std::numeric_limits<u32>::max() };
+    enum class TextureId : u32 { INVALID = std::numeric_limits<u32>::max() };
+    enum class ImageId : u32 { INVALID = std::numeric_limits<u32>::max() };
+    enum class AccelerationStructureId : u32 { INVALID = std::numeric_limits<u32>::max() };
 
-    enum class BINDING : u8 {
+    enum class Binding : u8 {
         UNIFORM = 0,
         BUFFER = 1,
         TEXTURE = 2,
         IMAGE = 3,
         ACCELERATION_STRUCTURE = 4,
+    };
+
+    struct Buffer {
+        VmaAllocation allocation = nullptr;
+        BufferId id = BufferId::INVALID;
+    };
+
+    struct Texture {
+        VkImage image = nullptr;
+        VkImageView view = nullptr;
+        VkSampler sampler = nullptr;
+        VmaAllocation allocation = nullptr;
+        VkExtent3D extent = {};
+        VkFormat format = {};
+        TextureId id = TextureId::INVALID;
+    };
+
+    struct Image {
+        VkImage image = nullptr;
+        VkImageView view = nullptr;
+        VmaAllocation allocation = nullptr;
+        VkExtent3D extent = {};
+        VkFormat format = {};
+        ImageId id = ImageId::INVALID;
     };
 
     struct RendererState {
@@ -98,11 +114,24 @@ namespace flux::renderer {
         VkDescriptorSet globalDescriptorSet = {};
         VkDescriptorSetLayout globalDescriptorSetLayout = {};
         VkDescriptorPool globalDescriptorPool = nullptr;
+
+        u32 currentBufferId = 0;
+        u32 currentTextureId = 0;
+        u32 currentImageId = 0;
+
+        // lists of deleted/newly available descriptor ids
+        std::vector<UniformId> availableUniformIds = {};
+        std::vector<BufferId> availableBufferIds = {};
+        std::vector<TextureId> availableTextureIds = {};
+        std::vector<ImageId> availableImageIds = {};
+        std::vector<AccelerationStructureId> availableAclStructureIds = {};
+
+        std::vector<VkWriteDescriptorSet> pendingWriteDescriptors = {};
         
         std::vector<VkImage> swapchainImages = {};
         std::vector<VkImageView> swapchainImageViews = {};
-        AllocatedImage drawImage = {};
-        ImageId drawImageID = {};
+
+        Image drawImage = {};
 
         // imgui
         ImGuiContext* imguiContext = nullptr;

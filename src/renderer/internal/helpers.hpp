@@ -43,24 +43,25 @@ namespace flux::renderer::vkutil {
         state->swapchainImageViews = vkbSwapchain.get_image_views().value();
     }
 
-    void createDrawImage(RendererState* state, u32 width, u32 height) {
-        state->drawImage.format = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
-        state->drawImage.extent = { width, height, 1U };
-        VkImageUsageFlags drawImageUsages = {};
-        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
-        drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-        auto imageInfo = vkinit::imageCreateInfo(state->drawImage.format, drawImageUsages, state->drawImage.extent);
+    Image createImage(RendererState* state, u32 width, u32 height) {
+        Image result = {
+            .extent = { width, height, 1U },
+            .format = VK_FORMAT_R16G16B16A16_SFLOAT, // hardcode f32 format
+        };
+        VkImageUsageFlags usages = {};
+        usages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        usages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        usages |= VK_IMAGE_USAGE_STORAGE_BIT;
+        usages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        auto imageInfo = vkinit::imageCreateInfo(result.format, usages, result.extent);
         VmaAllocationCreateInfo imageAllocInfo = { // alloc from gpu local memory
             .usage = VMA_MEMORY_USAGE_GPU_ONLY,
             .requiredFlags = (VkMemoryPropertyFlags)VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         };
-        vmaCreateImage(state->allocator, &imageInfo, &imageAllocInfo, &state->drawImage.image, &state->drawImage.allocation, nullptr);
-
-        auto viewInfo = vkinit::imageViewCreateInfo(state->drawImage.format, state->drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-        vkCheck(vkCreateImageView(state->device, &viewInfo, nullptr, &state->drawImage.view));
+        vmaCreateImage(state->allocator, &imageInfo, &imageAllocInfo, &result.image, &result.allocation, nullptr);
+        auto viewInfo = vkinit::imageViewCreateInfo(result.format, result.image, VK_IMAGE_ASPECT_COLOR_BIT);
+        vkCheck(vkCreateImageView(state->device, &viewInfo, nullptr, &result.view));
+        return result;
     }
 
     void rebuildSwapchain(RendererState* state) {
@@ -70,10 +71,11 @@ namespace flux::renderer::vkutil {
         destroySwapchain(state);
         vkDestroyImageView(state->device, state->drawImage.view, nullptr);
         vmaDestroyImage(state->allocator, state->drawImage.image, state->drawImage.allocation);
+        state->availableImageIds.emplace_back(state->drawImage.id);
 
         auto [w, h] = utility::getWindowSize(state->engine);
         createSwapchain(state, w, h);
-        createDrawImage(state, w, h);
+        state->drawImage = createImage(state, w, h);
 
         // TODO: update draw img descriptor here
     }
@@ -109,23 +111,6 @@ namespace flux::renderer::vkutil {
             .pCode = buffer.data(),
         };
         return vkCreateShaderModule(device, &createInfo, nullptr, out) == VK_SUCCESS;
-    }
-
-    void initDrawImageDescriptor(RendererState* state) {
-        VkDescriptorImageInfo imageInfo = {
-            .imageView = state->drawImage.view,
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        };
-        VkWriteDescriptorSet drawImageWrite = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = state->globalDescriptorSet,
-            .dstBinding = (u32)BINDING::IMAGE,
-            .dstArrayElement = (u32)state->drawImageID,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .pImageInfo = &imageInfo,
-        };
-        vkUpdateDescriptorSets(state->device, 1, &drawImageWrite, 0, nullptr);
     }
 
     void initPipelineLayout(RendererState* state) {

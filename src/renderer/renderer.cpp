@@ -105,7 +105,7 @@ bool renderer::init(RendererState* state) {
     state->deinitStack.emplace_back([state] {
         vkutil::destroySwapchain(state);
     });
-    vkutil::createDrawImage(state, w, h);
+    state->drawImage = vkutil::createImage(state, w, h);
 	state->deinitStack.emplace_back([state] {
 		vkDestroyImageView(state->device, state->drawImage.view, nullptr);
 		vmaDestroyImage(state->allocator, state->drawImage.image, state->drawImage.allocation);
@@ -153,10 +153,7 @@ bool renderer::init(RendererState* state) {
 
     vkutil::initDescriptors(state);
     vkutil::initPipelineLayout(state);
-
-    // create draw img descriptor
-    state->drawImageID = (ImageId)0;
-    vkutil::initDrawImageDescriptor(state);
+    vkutil::loadImageDescriptor(state, state->drawImage);
 
     // create gradient pipeline
     VkShaderModule computeDrawShader;
@@ -197,7 +194,7 @@ void drawBg(RendererState* state, VkCommandBuffer cmd) {
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->globalPipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
 
     ComputePushConstant pushConstant = {
-        .textureID = (u32)state->drawImageID,
+        .textureID = (u32)state->drawImage.id,
     };
 
     vkCmdPushConstants(cmd, state->globalPipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(ComputePushConstant), &pushConstant);
@@ -207,7 +204,7 @@ void drawBg(RendererState* state, VkCommandBuffer cmd) {
 }
 
 void renderer::draw(RendererState* state) {
-    
+    vkutil::updatePendingWriteDescriptors(state);
     ui::startFrame(state);
 
     // wait on gpu to finish rendering last frame
