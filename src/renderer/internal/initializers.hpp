@@ -71,4 +71,26 @@ namespace flux::renderer::vkinit {
             .pSignalSemaphoreInfos = signalInfo,
         };
     }
+
+    VkRenderingAttachmentInfo attachmentInfo(VkImageView view, VkClearValue* clear, VkImageLayout layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+        return {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = view,
+            .imageLayout = layout,
+            .loadOp = clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = (clear) ? *clear : VkClearValue{},
+        };
+    }
+
+    VkRenderingInfo renderingInfo(VkExtent2D renderExtent, VkRenderingAttachmentInfo* colorAttachment, VkRenderingAttachmentInfo* depthAttachment) {
+        return {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea = { { 0, 0 }, renderExtent },
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = colorAttachment,
+            .pDepthAttachment = depthAttachment,
+        };
+    }
 }

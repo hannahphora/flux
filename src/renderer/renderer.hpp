@@ -3,17 +3,30 @@
 #include <common/config.hpp>
 #include <common/math.hpp>
 
-#include <vulkan/vulkan.h>
-#include <vulkan/vk_enum_string_helper.h>
-#include <vkb/VkBootstrap.h>
-#include <vk_mem_alloc/vk_mem_alloc.h>
+// silence clang for external includes
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+    #include <vulkan/vulkan.h>
+    #include <vulkan/vk_enum_string_helper.h>
+    #include <vkb/VkBootstrap.h>
+    #include <vk_mem_alloc/vk_mem_alloc.h>
+    #include <GLFW/glfw3.h>
 
-#include <GLFW/glfw3.h>
+    #include <imgui/imgui.h>
+    #include <imgui/imgui_internal.h>
+    #include <imgui/backends/imgui_impl_glfw.h>
+    #include <imgui/backends/imgui_impl_vulkan.h>
+
+#pragma clang diagnostic pop
+
+namespace flux::renderer::ui {
+    extern void loadImguiContext(RendererState* state);
+}
 
 namespace flux::config::renderer {
     static constexpr bool ENABLE_VALIDATION_LAYERS = true;
     static constexpr u32 FRAME_OVERLAP = 2;
-    
+
     static constexpr usize MAX_DESCRIPTOR_COUNT = std::numeric_limits<u16>::max(); // 65536
 }
 
@@ -40,6 +53,13 @@ namespace flux::renderer {
         VkFormat format = {};
     };
 
+    struct ComputePushConstant {
+        u32 textureID;
+        glm::vec4 data1;
+	    glm::vec4 data2;
+        u32 data3;
+    };
+
     enum class TextureID : u32 { Invalid = std::numeric_limits<u32>::max() };
     enum class BufferID : u32 { Invalid = std::numeric_limits<u32>::max() };
     enum class StorageImageID : u32 { Invalid = std::numeric_limits<u32>::max() };
@@ -57,13 +77,13 @@ struct flux::RendererState {
     bool initialised = false;
 
     VkInstance instance = nullptr;
-    VkDebugUtilsMessengerEXT dbgMessenger = nullptr;
+    VkDebugUtilsMessengerEXT debugMessenger = nullptr;
     VkPhysicalDevice physicalDevice = nullptr;
     VkDevice device = nullptr;
     VmaAllocator allocator = nullptr;
 
     usize frameNumber = 0;
-    FrameData frames[config::renderer::FRAME_OVERLAP];
+    FrameData frames[config::renderer::FRAME_OVERLAP] = {};
 
     VkQueue graphicsQueue = nullptr;
     VkQueue computeQueue = nullptr;
@@ -83,14 +103,19 @@ struct flux::RendererState {
     VkPipeline gradientPipeline = nullptr;
 
     // descriptors
-    VkDescriptorSet bindlessDescriptorSet = {};
-    VkDescriptorSetLayout bindlessDescriptorSetLayout = {};
-    VkDescriptorPool descriptorPool = nullptr;
+    VkDescriptorSet globalDescriptorSet = {};
+    VkDescriptorSetLayout globalDescriptorSetLayout = {};
+    VkDescriptorPool globalDescriptorPool = nullptr;
     
     std::vector<VkImage> swapchainImages = {};
     std::vector<VkImageView> swapchainImageViews = {};
     AllocatedImage drawImage = {};
     StorageImageID drawImageID = {};
+
+    // imgui
+    ImGuiContext* imguiContext = nullptr;
+    void* imguiVulkanData = nullptr;
+    VkDescriptorPool imguiDescriptorPool = nullptr;
 
     // immediate submit structures
     struct {

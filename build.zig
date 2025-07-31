@@ -2,7 +2,12 @@ const std = @import("std");
 
 const BuildMode = enum { debug, release };
 
-const flags = .{
+const compileFlags = .{
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-parameter",
+    "-Wno-missing-field-initializers",
     "-pedantic-errors",
     "-Wc++11-extensions",
     "-std=c++20",
@@ -30,7 +35,7 @@ pub fn build(builder: *std.Build) !void {
         .root_module = flux,
         .name = "host",
     });
-    host.addCSourceFile(.{ .file = b.path("src/host.cpp"), .flags = &flags });
+    host.addCSourceFile(.{ .file = b.path("src/host.cpp"), .flags = &compileFlags });
 
     const engine = b.addLibrary(.{
         .root_module = flux,
@@ -41,8 +46,12 @@ pub fn build(builder: *std.Build) !void {
         "src/core/engine.cpp",
         "src/renderer/renderer.cpp",
         "src/input/input.cpp",
-    }, .flags = &flags });
-    try addCSourceFilesRecursive(engine, "deps/src");
+    }, .flags = &compileFlags });
+
+    try addCSourceFilesInDir(engine, "deps/include/vkb", &.{});
+    try addCSourceFilesInDir(engine, "deps/include/meshoptimizer", &.{});
+    try addCSourceFilesInDir(engine, "deps/include/imgui", &.{});
+    try addCSourceFilesInDir(engine, "deps/include/imgui/backends", &.{});
 
     var env_map = try std.process.getEnvMap(b.allocator);
     defer env_map.deinit();
@@ -57,6 +66,8 @@ pub fn build(builder: *std.Build) !void {
 
     flux.addIncludePath(b.path("deps/include"));
     flux.addIncludePath(b.path("deps/include/meshoptimizer"));
+    flux.addIncludePath(b.path("deps/include/imgui"));
+    flux.addIncludePath(b.path("deps/include/imgui/backends"));
 
     try compileShaders();
 
@@ -74,7 +85,7 @@ pub fn build(builder: *std.Build) !void {
     run.step.dependOn(&b.addInstallArtifact(host, .{}).step);
     run.step.dependOn(b.getInstallStep());
     run.stdio = .inherit;
-    run.setCwd(host.getEmittedBinDirectory());
+    run.setCwd(.{ .cwd_relative = b.exe_dir });
     b.step("run", "Run the host").dependOn(&run.step);
 }
 
@@ -105,20 +116,19 @@ fn compileShaders() !void {
     }
 }
 
-fn addCSourceFilesRecursive(c: *std.Build.Step.Compile, path: []const u8) !void {
+fn addCSourceFilesInDir(c: *std.Build.Step.Compile, path: []const u8, flags: []const []const u8) !void {
     var dir = try b.build_root.handle.openDir(path, .{ .iterate = true });
     defer dir.close();
-    var walker = try dir.walk(b.allocator);
-    defer walker.deinit();
 
-    while (try walker.next()) |entry| {
+    var itr = dir.iterate();
+    while (try itr.next()) |entry| {
         if (entry.kind == .file and
-            (std.mem.eql(u8, std.fs.path.extension(entry.basename), ".c") or
-                std.mem.eql(u8, std.fs.path.extension(entry.basename), ".cpp")))
+            (std.mem.eql(u8, std.fs.path.extension(entry.name), ".c") or
+                std.mem.eql(u8, std.fs.path.extension(entry.name), ".cpp")))
         {
-            if (verbose) std.debug.print("Found source file: {s}\n", .{entry.basename});
-            const src_path = try std.fmt.allocPrint(b.allocator, "deps/src/{s}", .{entry.path});
-            c.addCSourceFile(.{ .file = b.path(src_path), .flags = &flags });
+            if (verbose) std.debug.print("Found source file: {s}\n", .{entry.name});
+            const src_path = try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ path, entry.name });
+            c.addCSourceFile(.{ .file = b.path(src_path), .flags = flags });
         }
     }
 }

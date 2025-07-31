@@ -13,27 +13,28 @@
 #include "common/math.hpp"
 #include "internal/math_impl.hpp"
 
+static void glfw_error_callback(i32 error, const char* description) {
+    log::unbuffered(std::format("GLFW Error {}: {}", error, description), log::level::ERROR);
+}
+
 void engine::init(EngineState* state) {
 
     // init glfw
     log::buffered("initialising glfw");
-    glfwInit();
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    state->deinitStack.emplace_back([state] {
+    glfwSetErrorCallback(glfw_error_callback);
+    if (!glfwInit())
+        log::unbuffered("failed to init glfw", log::level::ERROR);
+    state->deinitStack.emplace_back([] {
         log::buffered("deinitialising glfw");
         glfwTerminate();
     });
 
     // create window
     log::buffered("creating window");
-    if (!(state->window = glfwCreateWindow(
-        config::WINDOW_WIDTH, config::WINDOW_HEIGHT,
-        config::APP_NAME.c_str(),
-        nullptr, nullptr
-    ))) {
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    if (!(state->window = glfwCreateWindow(config::WINDOW_WIDTH, config::WINDOW_HEIGHT, config::APP_NAME.c_str(), nullptr, nullptr)))
         log::unbuffered("failed to create window", log::level::ERROR);
-    }
     state->deinitStack.emplace_back([state] {
         log::buffered("destroying window");
         glfwDestroyWindow(state->window);
@@ -70,6 +71,12 @@ void engine::deinit(EngineState* state) {
 }
 
 void engine::update(EngineState* state) {
+
+    if (state->hotReloadTriggered) {
+        renderer::ui::loadImguiContext(state->renderer);
+        state->hotReloadTriggered = false;
+    }
+
     glfwPollEvents();
 
     input::update(state->input);

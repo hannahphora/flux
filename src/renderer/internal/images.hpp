@@ -29,7 +29,6 @@ namespace flux::renderer::vkinit {
     }
 
     VkImageViewCreateInfo imageViewCreateInfo(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags) {
-        // build a image view for the depth image to use for rendering
         return {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = image,
@@ -48,8 +47,7 @@ namespace flux::renderer::vkinit {
 
 namespace flux::renderer::vkutil {
 
-    void transitionImage(VkCommandBuffer cmd, VkImage image,
-        VkImageLayout currentLayout, VkImageLayout newLayout) {
+    void transitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout) {
         
         VkImageMemoryBarrier2 imageBarrier {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,

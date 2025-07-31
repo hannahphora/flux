@@ -98,10 +98,10 @@ namespace flux::renderer::vkutil {
     bool loadShaderModule(const char* path, VkDevice device, VkShaderModule* out) {
         std::ifstream file(path, std::ios::ate | std::ios::binary);
         if (!file.is_open()) return false;
-        usize fileSize = (size_t)file.tellg();
-        std::vector<u32> buffer(fileSize / sizeof(u32));
+        usize size = (usize)file.tellg();
+        std::vector<u32> buffer(size / sizeof(u32));
         file.seekg(0);
-        file.read((char*)buffer.data(), fileSize);
+        file.read((char*)buffer.data(), size);
         file.close();
         VkShaderModuleCreateInfo createInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -118,7 +118,7 @@ namespace flux::renderer::vkutil {
         };
         VkWriteDescriptorSet drawImageWrite = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = state->bindlessDescriptorSet,
+            .dstSet = state->globalDescriptorSet,
             .dstBinding = (u32)STORAGE_IMAGE_BINDING,
             .dstArrayElement = (u32)state->drawImageID,
             .descriptorCount = 1,

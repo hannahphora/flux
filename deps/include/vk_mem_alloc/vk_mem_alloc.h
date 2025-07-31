@@ -11816,7 +11816,10 @@ VkResult VmaBlockVector::CommitAllocationRequest(
 
 VkResult VmaBlockVector::CreateBlock(VkDeviceSize blockSize, size_t* pNewBlockIndex)
 {
-    VkMemoryAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+    VkMemoryAllocateInfo allocInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+    };
     allocInfo.pNext = m_pMemoryAllocateNext;
     allocInfo.memoryTypeIndex = m_MemoryTypeIndex;
     allocInfo.allocationSize = blockSize;

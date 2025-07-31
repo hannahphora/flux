@@ -2,29 +2,31 @@
 #include "renderer.hpp"
 
 #include <core/engine.hpp>
-
 #include <common/log.hpp>
 #include <common/utility.hpp>
+#include <common/math.hpp>
 
 #include "internal/images.hpp"
 #include "internal/helpers.hpp"
+#include "internal/descriptors.hpp"
+#include "internal/ui.hpp"
 
 using namespace renderer;
 
 bool renderer::init(RendererState* state) {
     // create instance
-    vkb::InstanceBuilder instBuilder;
-    auto vkbInst = instBuilder
+    vkb::InstanceBuilder instanceBuilder;
+    auto vkbInstance = instanceBuilder
         .set_app_name(config::APP_NAME.c_str())
         .request_validation_layers(config::renderer::ENABLE_VALIDATION_LAYERS)
         .use_default_debug_messenger()
         .require_api_version(1, 3, 0)
         .build()
         .value();
-    state->instance = vkbInst.instance;
-    state->dbgMessenger = vkbInst.debug_messenger;
+    state->instance = vkbInstance.instance;
+    state->debugMessenger = vkbInstance.debug_messenger;
     state->deinitStack.emplace_back([state] {
-        vkb::destroy_debug_utils_messenger(state->instance, state->dbgMessenger);
+        vkb::destroy_debug_utils_messenger(state->instance, state->debugMessenger);
 		vkDestroyInstance(state->instance, nullptr);
     });
 
@@ -32,7 +34,7 @@ bool renderer::init(RendererState* state) {
     vkCheck(glfwCreateWindowSurface(state->instance, state->engine->window, nullptr, &state->surface));
 
     // query physical device and create device
-    auto physDevSelector = vkb::PhysicalDeviceSelector{ vkbInst };
+    auto physDevSelector = vkb::PhysicalDeviceSelector{ vkbInstance };
     auto vkbPhysDev = physDevSelector
         .set_minimum_version(1, 3)
         .set_required_features_13({
@@ -54,11 +56,14 @@ bool renderer::init(RendererState* state) {
             .runtimeDescriptorArray = true,
             .bufferDeviceAddress = true,
         })
+        .add_required_extensions({
+            "VK_EXT_mesh_shader",
+            "VK_EXT_shader_object",
+        })
         .set_surface(state->surface)
         .select()
         .value();
-    auto devBuilder = vkb::DeviceBuilder{ vkbPhysDev };
-    auto vkbDevice = devBuilder.build().value();
+    auto vkbDevice = vkb::DeviceBuilder{ vkbPhysDev }.build().value();
     state->device = vkbDevice.device;
     state->physicalDevice = vkbPhysDev.physical_device;
 
@@ -90,19 +95,18 @@ bool renderer::init(RendererState* state) {
     
     // init swapchain & draw img
     auto [w, h] = utility::getWindowSize(state->engine);
-    createSwapchain(state, w, h);
+    vkutil::createSwapchain(state, w, h);
     state->deinitStack.emplace_back([state] {
-        destroySwapchain(state);
+        vkutil::destroySwapchain(state);
     });
-    createDrawImage(state, w, h);
+    vkutil::createDrawImage(state, w, h);
 	state->deinitStack.emplace_back([state] {
 		vkDestroyImageView(state->device, state->drawImage.view, nullptr);
 		vmaDestroyImage(state->allocator, state->drawImage.image, state->drawImage.allocation);
 	});
 
     // init cmds
-    auto cmdPoolInfo = vkinit::cmdPoolCreateInfo(
-        state->graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    auto cmdPoolInfo = vkinit::cmdPoolCreateInfo(state->graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 	for (usize i = 0; i < config::renderer::FRAME_OVERLAP; i++) {
 		vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->frames[i].cmdPool));
 		auto cmdAllocInfo = vkinit::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
@@ -174,7 +178,7 @@ bool renderer::init(RendererState* state) {
         .bindingCount = descriptorBindings.size(),
         .pBindings = descriptorBindings.data(),
     };
-    vkCreateDescriptorSetLayout(state->device, &descriptorSetLayoutCreateInfo, nullptr, &state->bindlessDescriptorSetLayout);
+    vkCreateDescriptorSetLayout(state->device, &descriptorSetLayoutCreateInfo, nullptr, &state->globalDescriptorSetLayout);
     // descriptor pool
     VkDescriptorPoolCreateInfo poolInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
@@ -183,23 +187,23 @@ bool renderer::init(RendererState* state) {
         .poolSizeCount = descriptorPoolSizes.size(),
         .pPoolSizes = descriptorPoolSizes.data(),
     };
-    vkCreateDescriptorPool(state->device, &poolInfo, nullptr, &state->descriptorPool);
+    vkCreateDescriptorPool(state->device, &poolInfo, nullptr, &state->globalDescriptorPool);
     // descriptor set
     VkDescriptorSetAllocateInfo allocateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = state->descriptorPool,
+        .descriptorPool = state->globalDescriptorPool,
         .descriptorSetCount = 1,
-        .pSetLayouts = &state->bindlessDescriptorSetLayout,
+        .pSetLayouts = &state->globalDescriptorSetLayout,
     };
-    vkAllocateDescriptorSets(state->device, &allocateInfo, &state->bindlessDescriptorSet);
+    vkAllocateDescriptorSets(state->device, &allocateInfo, &state->globalDescriptorSet);
     state->deinitStack.emplace_back([state] {
-        vkDestroyDescriptorPool(state->device, state->descriptorPool, nullptr);
-        vkDestroyDescriptorSetLayout(state->device, state->bindlessDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorPool(state->device, state->globalDescriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(state->device, state->globalDescriptorSetLayout, nullptr);
     });
 
     // create draw img descriptor
     state->drawImageID = (StorageImageID)0;
-    initDrawImageDescriptor(state);
+    vkutil::initDrawImageDescriptor(state);
 
     // init pipelines
     VkPushConstantRange pushConstantRange = {
@@ -210,7 +214,7 @@ bool renderer::init(RendererState* state) {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
-        .pSetLayouts = &state->bindlessDescriptorSetLayout,
+        .pSetLayouts = &state->globalDescriptorSetLayout,
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushConstantRange,
     };
@@ -221,7 +225,7 @@ bool renderer::init(RendererState* state) {
 
     // create gradient pipeline
     VkShaderModule computeDrawShader;
-	if (!loadShaderModule("res/shaders/gradient.spv", state->device, &computeDrawShader))
+	if (!vkutil::loadShaderModule("res/shaders/gradient.spv", state->device, &computeDrawShader))
         log::unbuffered("error creating compute shader module", log::level::WARNING);
 	VkPipelineShaderStageCreateInfo stageinfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -240,6 +244,9 @@ bool renderer::init(RendererState* state) {
 		vkDestroyPipeline(state->device, state->gradientPipeline, nullptr);
     });
 
+    // init imgui
+    ui::init(state);
+
     state->initialised = true;
     return true;
 }
@@ -253,12 +260,22 @@ void renderer::deinit(RendererState* state) {
 void drawBg(RendererState* state, VkCommandBuffer cmd) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->gradientPipeline);
 	// bind the descriptor set containing the draw image for the compute pipeline
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->pipelineLayout, 0, 1, &state->bindlessDescriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->pipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
+
+    ComputePushConstant pushConstant = {
+        .textureID = (u32)state->drawImageID,
+    };
+
+    vkCmdPushConstants(cmd, state->pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(ComputePushConstant), &pushConstant);
+
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch(cmd, std::ceil(state->drawExtent.width / 16.0), std::ceil(state->drawExtent.height / 16.0), 1);
 }
 
 void renderer::draw(RendererState* state) {
+    
+    ui::startFrame(state);
+
     // wait on gpu to finish rendering last frame
     vkCheck(vkWaitForFences(state->device, 1, &getCurrentFrame(state).renderFence, true, 1000000000 /*max 1 second timeout*/));
     vkCheck(vkResetFences(state->device, 1, &getCurrentFrame(state).renderFence));
@@ -293,11 +310,16 @@ void renderer::draw(RendererState* state) {
         vkutil::transitionImage(cmd, state->drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        // execute a copy from draw img into the swapchain
         vkutil::copyImageToImage(cmd, state->drawImage.image, state->swapchainImages[swapchainImageIndex], state->drawExtent, state->swapchainExtent);
 
+        // set swapchain image layout to Attachment Optimal so we can draw it
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        // draw imgui into the swapchain image
+        ui::draw(state, cmd, state->swapchainImageViews[swapchainImageIndex]);
+
         // set swapchain img layout to present
-        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 	vkCheck(vkEndCommandBuffer(cmd));
 
