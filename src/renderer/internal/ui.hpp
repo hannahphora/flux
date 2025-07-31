@@ -4,18 +4,19 @@
 
 #include <common/utility.hpp>
 
+extern void ImGui_ImplGlfw_ContextMap_Add_Wrapper(GLFWwindow* window, ImGuiContext* ctx);
+
 namespace flux::renderer::ui {
 
     void layoutDebugWindow(RendererState* state) {
         if (ImGui::Begin("debug")) {
-
             ImGui::Text("haii :3");
         }
         ImGui::End();
     }
 
     void loadImguiContext(RendererState* state) {
-        ImGui_ImplGlfw_RestoreCallbacks(state->engine->window);
+        ImGui_ImplGlfw_ContextMap_Add_Wrapper(state->engine->window, state->imguiContext);
         ImGui::SetCurrentContext(state->imguiContext);
 
         ImGuiMemAllocFunc allocFn;
@@ -28,24 +29,25 @@ namespace flux::renderer::ui {
     }
 
     void init(RendererState* state) {
-        // imgui descriptor pool (currently very oversize)
+        // imgui descriptor pool
+        static constexpr u32 size = 250;
         VkDescriptorPoolSize imguiPoolSizes[] = {
-            { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-            { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+            { VK_DESCRIPTOR_TYPE_SAMPLER, size },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, size },
+            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, size },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, size },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, size },
+            { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, size },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, size },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, size },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, size },
+            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, size },
+            { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, size }
         };
         VkDescriptorPoolCreateInfo imguiPoolInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets = 1000,
+            .maxSets = size,
             .poolSizeCount = (u32)std::size(imguiPoolSizes),
             .pPoolSizes = imguiPoolSizes,
         };
@@ -76,7 +78,6 @@ namespace flux::renderer::ui {
             ImGui_ImplGlfw_Shutdown();
             ImGui::DestroyContext();
             vkDestroyDescriptorPool(state->device, state->imguiDescriptorPool, nullptr);
-            delete state->imguiContext;
         });
 
         state->imguiVulkanData = state->imguiContext->IO.BackendRendererUserData;

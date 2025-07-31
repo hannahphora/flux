@@ -59,6 +59,12 @@ bool renderer::init(RendererState* state) {
         .add_required_extensions({
             "VK_EXT_mesh_shader",
             "VK_EXT_shader_object",
+            "VK_KHR_acceleration_structure",
+            "VK_KHR_deferred_host_operations",
+        })
+        .add_required_extension_features(VkPhysicalDeviceAccelerationStructureFeaturesKHR{
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
+            .descriptorBindingAccelerationStructureUpdateAfterBind = true,
         })
         .set_surface(state->surface)
         .select()
@@ -145,83 +151,12 @@ bool renderer::init(RendererState* state) {
         }
     });
 
-    // init descriptors set
-    std::array<VkDescriptorType, 4> descriptorTypes = {
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-    };
-    std::array<VkDescriptorSetLayoutBinding, descriptorTypes.size()> descriptorBindings = {};
-    std::array<VkDescriptorBindingFlags, descriptorTypes.size()> descriptorBindingFlags = {};
-    std::array<VkDescriptorPoolSize, descriptorTypes.size()> descriptorPoolSizes = {};
-    // descriptor set layout
-    for (u32 i = 0; i < descriptorBindings.size(); i++) {
-        descriptorBindings[i] = {
-            .binding = i,
-            .descriptorType = descriptorTypes[i],
-            .descriptorCount = config::renderer::MAX_DESCRIPTOR_COUNT,
-            .stageFlags = VK_SHADER_STAGE_ALL,
-        };
-        descriptorBindingFlags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-        descriptorPoolSizes[i] = { descriptorTypes[i], config::renderer::MAX_DESCRIPTOR_COUNT };
-    }
-    VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-        .bindingCount = descriptorBindingFlags.size(),
-        .pBindingFlags = descriptorBindingFlags.data(),
-    };
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .pNext = &bindingFlagsInfo,
-        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-        .bindingCount = descriptorBindings.size(),
-        .pBindings = descriptorBindings.data(),
-    };
-    vkCreateDescriptorSetLayout(state->device, &descriptorSetLayoutCreateInfo, nullptr, &state->globalDescriptorSetLayout);
-    // descriptor pool
-    VkDescriptorPoolCreateInfo poolInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-        .maxSets = 1,
-        .poolSizeCount = descriptorPoolSizes.size(),
-        .pPoolSizes = descriptorPoolSizes.data(),
-    };
-    vkCreateDescriptorPool(state->device, &poolInfo, nullptr, &state->globalDescriptorPool);
-    // descriptor set
-    VkDescriptorSetAllocateInfo allocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = state->globalDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &state->globalDescriptorSetLayout,
-    };
-    vkAllocateDescriptorSets(state->device, &allocateInfo, &state->globalDescriptorSet);
-    state->deinitStack.emplace_back([state] {
-        vkDestroyDescriptorPool(state->device, state->globalDescriptorPool, nullptr);
-        vkDestroyDescriptorSetLayout(state->device, state->globalDescriptorSetLayout, nullptr);
-    });
+    vkutil::initDescriptors(state);
+    vkutil::initPipelineLayout(state);
 
     // create draw img descriptor
-    state->drawImageID = (StorageImageID)0;
+    state->drawImageID = (ImageId)0;
     vkutil::initDrawImageDescriptor(state);
-
-    // init pipelines
-    VkPushConstantRange pushConstantRange = {
-        .stageFlags = VK_SHADER_STAGE_ALL,
-        .offset = 0U,
-        .size = 128U,
-    };
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts = &state->globalDescriptorSetLayout,
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &pushConstantRange,
-    };
-    vkCreatePipelineLayout(state->device, &pipelineLayoutInfo, nullptr, &state->pipelineLayout);
-    state->deinitStack.emplace_back([state] {
-        vkDestroyPipelineLayout(state->device, state->pipelineLayout, nullptr);
-    });
 
     // create gradient pipeline
     VkShaderModule computeDrawShader;
@@ -236,7 +171,7 @@ bool renderer::init(RendererState* state) {
 	VkComputePipelineCreateInfo computePipelineCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .stage = stageinfo,
-        .layout = state->pipelineLayout,
+        .layout = state->globalPipelineLayout,
     };
 	vkCheck(vkCreateComputePipelines(state->device, nullptr, 1, &computePipelineCreateInfo, nullptr, &state->gradientPipeline));
     vkDestroyShaderModule(state->device, computeDrawShader, nullptr);
@@ -244,7 +179,6 @@ bool renderer::init(RendererState* state) {
 		vkDestroyPipeline(state->device, state->gradientPipeline, nullptr);
     });
 
-    // init imgui
     ui::init(state);
 
     state->initialised = true;
@@ -260,13 +194,13 @@ void renderer::deinit(RendererState* state) {
 void drawBg(RendererState* state, VkCommandBuffer cmd) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->gradientPipeline);
 	// bind the descriptor set containing the draw image for the compute pipeline
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->pipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->globalPipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
 
     ComputePushConstant pushConstant = {
         .textureID = (u32)state->drawImageID,
     };
 
-    vkCmdPushConstants(cmd, state->pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(ComputePushConstant), &pushConstant);
+    vkCmdPushConstants(cmd, state->globalPipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(ComputePushConstant), &pushConstant);
 
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
 	vkCmdDispatch(cmd, std::ceil(state->drawExtent.width / 16.0), std::ceil(state->drawExtent.height / 16.0), 1);

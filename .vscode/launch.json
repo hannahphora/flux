@@ -6,13 +6,6 @@
             "type": "cppvsdbg",
             "request": "attach",
             "processId": "${command:pickProcess}",
-            "internalConsoleOptions": "neverOpen",
-            "logging": {
-                "programOutput": true,
-                "exceptions": true,
-                "moduleLoad": true,
-                "trace": true,
-            },
         },
     ]
 }

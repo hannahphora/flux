@@ -119,13 +119,32 @@ namespace flux::renderer::vkutil {
         VkWriteDescriptorSet drawImageWrite = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = state->globalDescriptorSet,
-            .dstBinding = (u32)STORAGE_IMAGE_BINDING,
+            .dstBinding = (u32)BINDING::IMAGE,
             .dstArrayElement = (u32)state->drawImageID,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             .pImageInfo = &imageInfo,
         };
         vkUpdateDescriptorSets(state->device, 1, &drawImageWrite, 0, nullptr);
+    }
+
+    void initPipelineLayout(RendererState* state) {
+        VkPushConstantRange pushConstantRange = {
+            .stageFlags = VK_SHADER_STAGE_ALL,
+            .offset = 0U,
+            .size = 128U,
+        };
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .setLayoutCount = 1,
+            .pSetLayouts = &state->globalDescriptorSetLayout,
+            .pushConstantRangeCount = 1,
+            .pPushConstantRanges = &pushConstantRange,
+        };
+        vkCreatePipelineLayout(state->device, &pipelineLayoutInfo, nullptr, &state->globalPipelineLayout);
+        state->deinitStack.emplace_back([state] {
+            vkDestroyPipelineLayout(state->device, state->globalPipelineLayout, nullptr);
+        });
     }
 
 }

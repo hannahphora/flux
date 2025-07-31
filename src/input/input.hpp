@@ -7,9 +7,9 @@ namespace flux::input {
     bool init(InputState* state);
     void deinit(InputState* state);
     void update(InputState* state);
-}
 
-struct flux::InputState {
-    const EngineState* engine;
-    bool initialised = false;
-};
+    struct InputState {
+        const EngineState* engine;
+        bool initialised = false;
+    };
+}

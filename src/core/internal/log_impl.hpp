@@ -8,6 +8,7 @@ namespace flux::log {
         "DEBUG",
         "WARNING",
         "ERROR",
+        "VULKAN",
     };
 
     void abortIfError(level lvl) {

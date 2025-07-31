@@ -155,6 +155,10 @@ static void ImGui_ImplGlfw_ContextMap_Add(GLFWwindow* window, ImGuiContext* ctx)
 static void ImGui_ImplGlfw_ContextMap_Remove(GLFWwindow* window)                 { for (ImGui_ImplGlfw_WindowToContext& entry : g_ContextMap) if (entry.Window == window) { g_ContextMap.erase_unsorted(&entry); return; } }
 static ImGuiContext* ImGui_ImplGlfw_ContextMap_Get(GLFWwindow* window)           { for (ImGui_ImplGlfw_WindowToContext& entry : g_ContextMap) if (entry.Window == window) return entry.Context; return nullptr; }
 
+void ImGui_ImplGlfw_ContextMap_Add_Wrapper(GLFWwindow* window, ImGuiContext* ctx) {
+    ImGui_ImplGlfw_ContextMap_Add(window, ctx);
+}
+
 // GLFW data
 enum GlfwClientApi
 {

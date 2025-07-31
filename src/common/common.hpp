@@ -31,10 +31,13 @@ using u64 = unsigned long long;
 using f32 = float;
 using f64 = double;
 
-namespace flux { struct EngineState; };
-namespace flux { struct RendererState; };
-namespace flux { struct InputState; };
+namespace flux::engine { struct EngineState; };
+namespace flux::renderer { struct RendererState; };
+namespace flux::input { struct InputState; };
 
 using namespace flux;
+using flux::engine::EngineState;
+using flux::renderer::RendererState;
+using flux::input::InputState;
 
 using DeinitStack = std::vector<std::function<void()>>;
