@@ -43,25 +43,22 @@ namespace flux::renderer::vkutil {
         state->swapchainImageViews = vkbSwapchain.get_image_views().value();
     }
 
-    Image createImage(RendererState* state, u32 width, u32 height) {
-        Image result = {
-            .extent = { width, height, 1U },
-            .format = VK_FORMAT_R16G16B16A16_SFLOAT, // hardcode f32 format
-        };
+    void createImage(RendererState* state, u32 width, u32 height, Image* out) {
+        out->extent = { width, height, 1U },
+        out->format = VK_FORMAT_R16G16B16A16_SFLOAT, // hardcode f32 format
         VkImageUsageFlags usages = {};
         usages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         usages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         usages |= VK_IMAGE_USAGE_STORAGE_BIT;
         usages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        auto imageInfo = vkinit::imageCreateInfo(result.format, usages, result.extent);
+        auto imageInfo = vkinit::imageCreateInfo(out->format, usages, out->extent);
         VmaAllocationCreateInfo imageAllocInfo = { // alloc from gpu local memory
             .usage = VMA_MEMORY_USAGE_GPU_ONLY,
             .requiredFlags = (VkMemoryPropertyFlags)VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         };
-        vmaCreateImage(state->allocator, &imageInfo, &imageAllocInfo, &result.image, &result.allocation, nullptr);
-        auto viewInfo = vkinit::imageViewCreateInfo(result.format, result.image, VK_IMAGE_ASPECT_COLOR_BIT);
-        vkCheck(vkCreateImageView(state->device, &viewInfo, nullptr, &result.view));
-        return result;
+        vmaCreateImage(state->allocator, &imageInfo, &imageAllocInfo, &out->image, &out->allocation, nullptr);
+        auto viewInfo = vkinit::imageViewCreateInfo(out->format, out->image, VK_IMAGE_ASPECT_COLOR_BIT);
+        vkCheck(vkCreateImageView(state->device, &viewInfo, nullptr, &out->view));
     }
 
     void rebuildSwapchain(RendererState* state) {
