@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cstdarg>
 
 #include <atomic>
 #include <array>
@@ -31,9 +32,10 @@ using u64 = unsigned long long;
 using f32 = float;
 using f64 = double;
 
-namespace flux::engine { struct EngineState; };
-namespace flux::renderer { struct RendererState; };
-namespace flux::input { struct InputState; };
+namespace flux {}
+namespace flux::engine { struct EngineState; }
+namespace flux::renderer { struct RendererState; }
+namespace flux::input { struct InputState; }
 
 using namespace flux;
 using flux::engine::EngineState;

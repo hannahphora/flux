@@ -54,7 +54,6 @@ i32 main() {
                 system("zig build");
                 load_dl();
                 find_update_fn();
-                state->hotReloadTriggered = true;
                 break;
             }
             default: break;

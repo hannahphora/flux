@@ -51,8 +51,6 @@ pub fn build(builder: *std.Build) !void {
 
     try addCSourceFilesInDir(engine, "deps/include/vkb", &.{});
     try addCSourceFilesInDir(engine, "deps/include/meshoptimizer", &.{});
-    try addCSourceFilesInDir(engine, "deps/include/imgui", &.{});
-    try addCSourceFilesInDir(engine, "deps/include/imgui/backends", &.{});
 
     var env_map = try std.process.getEnvMap(b.allocator);
     defer env_map.deinit();
@@ -67,8 +65,6 @@ pub fn build(builder: *std.Build) !void {
 
     flux.addIncludePath(b.path("deps/include"));
     flux.addIncludePath(b.path("deps/include/meshoptimizer"));
-    flux.addIncludePath(b.path("deps/include/imgui"));
-    flux.addIncludePath(b.path("deps/include/imgui/backends"));
 
     // generate compile_commands.json for clangd
     var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);

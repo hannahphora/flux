@@ -9,6 +9,7 @@ namespace flux::log {
         WARNING,
         ERROR,
         VULKAN,
+        TODO,
     };
 
     void buffered(const std::string& msg, level lvl = level::DEBUG);

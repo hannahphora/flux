@@ -4,100 +4,82 @@
 
 #include <common/utility.hpp>
 
-extern void ImGui_ImplGlfw_ContextMap_Add_Wrapper(GLFWwindow* window, ImGuiContext* ctx);
-
 namespace flux::renderer::ui {
 
-    void layoutDebugWindow(RendererState* state) {
-        if (ImGui::Begin("debug")) {
-            ImGui::Text("haii :3");
-        }
-        ImGui::End();
-    }
+    //void init(RendererState* state) {
+    //    state->nk.ctx = nk_glfw3_init(
+    //        state->engine->window,
+    //        state->device,
+    //        state->physicalDevice,
+    //        state->queueFamily.graphics,
+    //        demo.overlay_image_views,
+    //        demo.swap_chain_images_len,
+    //        demo.swap_chain_image_format,
+    //        NK_GLFW3_INSTALL_CALLBACKS,
+    //        MAX_VERTEX_BUFFER,
+    //        MAX_ELEMENT_BUFFER,
+    //    );
+    //    state->deinitStack.emplace_back([state] {
+    //        nk_glfw3_shutdown();
+    //        delete state->nk.ctx;
+    //    });
+    //    
+    //    state->nk.img = nk_image_ptr(demo.demo_texture_image_view);
+    //    state->nk.bg = {
+    //        .r = 0.10f,
+    //        .g = 0.18f,
+    //        .b = 0.24f,
+    //        .a = 1.0f,
+    //    };
+    //}
 
-    void loadImguiContext(RendererState* state) {
-        ImGui_ImplGlfw_ContextMap_Add_Wrapper(state->engine->window, state->imguiContext);
-        ImGui::SetCurrentContext(state->imguiContext);
-
-        ImGuiMemAllocFunc allocFn;
-        ImGuiMemFreeFunc freeFn;
-        void* userData;
-        ImGui::GetAllocatorFunctions(&allocFn, &freeFn, &userData);
-        ImGui::SetAllocatorFunctions(allocFn, freeFn, userData);
-
-        state->imguiContext->IO.BackendRendererUserData = state->imguiVulkanData;
-    }
-
-    void init(RendererState* state) {
-        // imgui descriptor pool
-        static constexpr u32 size = 250;
-        VkDescriptorPoolSize imguiPoolSizes[] = {
-            { VK_DESCRIPTOR_TYPE_SAMPLER, size },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, size },
-            { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, size },
-            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, size },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, size },
-            { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, size },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, size },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, size },
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, size },
-            { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, size },
-            { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, size }
-        };
-        VkDescriptorPoolCreateInfo imguiPoolInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets = size,
-            .poolSizeCount = (u32)std::size(imguiPoolSizes),
-            .pPoolSizes = imguiPoolSizes,
-        };
-        vkCheck(vkCreateDescriptorPool(state->device, &imguiPoolInfo, nullptr, &state->imguiDescriptorPool));
-
-        state->imguiContext = ImGui::CreateContext();
-
-        ImGui_ImplGlfw_InitForVulkan(state->engine->window, true);
-        ImGui_ImplVulkan_InitInfo imguiInitInfo = {
-            .Instance = state->instance,
-            .PhysicalDevice = state->physicalDevice,
-            .Device = state->device,
-            .Queue = state->graphicsQueue,
-            .DescriptorPool = state->imguiDescriptorPool,
-            .MinImageCount = 3,
-            .ImageCount = 3,
-            .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
-            .UseDynamicRendering = true,
-            .PipelineRenderingCreateInfo = { 
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-                .colorAttachmentCount = 1,
-                .pColorAttachmentFormats = &state->swapchainImageFormat,
-            },
-        };
-        ImGui_ImplVulkan_Init(&imguiInitInfo);
-        state->deinitStack.emplace_back([state] {
-            ImGui_ImplVulkan_Shutdown();
-            ImGui_ImplGlfw_Shutdown();
-            ImGui::DestroyContext();
-            vkDestroyDescriptorPool(state->device, state->imguiDescriptorPool, nullptr);
-        });
-
-        state->imguiVulkanData = state->imguiContext->IO.BackendRendererUserData;
-        loadImguiContext(state);
-    }
-
-    void draw(RendererState* state, VkCommandBuffer cmd, VkImageView targetImageView) {
-        auto colorAttachment = vkinit::attachmentInfo(targetImageView, nullptr);
-        auto renderInfo = vkinit::renderingInfo(state->swapchainExtent, &colorAttachment, nullptr);
-
-        vkCmdBeginRendering(cmd, &renderInfo);
-        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-        vkCmdEndRendering(cmd);
-    }
-
-    void startFrame(RendererState* state) {
-        ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-        layoutDebugWindow(state);
-        ImGui::Render();
-    }
+    //void startFrame(RendererState* state) {
+    //    nk_glfw3_new_frame();
+    //    if (nk_begin(state->nk.ctx, "Demo", nk_rect(50, 50, 230, 250),
+    //            NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE
+    //    )) {
+    //        enum { EASY, HARD };
+    //        static int op = EASY;
+    //        static int property = 20;
+    //        nk_layout_row_static(state->nk.ctx, 30, 80, 1);
+    //        if (nk_button_label(state->nk.ctx, "button"))
+    //            fprintf(stdout, "button pressed\n");
+    //
+    //        nk_layout_row_dynamic(state->nk.ctx, 30, 2);
+    //        if (nk_option_label(state->nk.ctx, "easy", op == EASY))
+    //            op = EASY;
+    //        if (nk_option_label(state->nk.ctx, "hard", op == HARD))
+    //            op = HARD;
+    //
+    //        nk_layout_row_dynamic(state->nk.ctx, 25, 1);
+    //        nk_property_int(state->nk.ctx, "Compression:", 0, &property, 100, 10, 1);
+    //
+    //        nk_layout_row_dynamic(state->nk.ctx, 20, 1);
+    //        nk_label(state->nk.ctx, "background:", NK_TEXT_LEFT);
+    //        nk_layout_row_dynamic(state->nk.ctx, 25, 1);
+    //        if (nk_combo_begin_color(state->nk.ctx, nk_rgb_cf(state->nk.bg),
+    //                                 nk_vec2(nk_widget_width(state->nk.ctx), 400))) {
+    //            nk_layout_row_dynamic(state->nk.ctx, 120, 1);
+    //            state->nk.bg = nk_color_picker(state->nk.ctx, state->nk.bg, NK_RGBA);
+    //            nk_layout_row_dynamic(state->nk.ctx, 25, 1);
+    //            state->nk.bg.r = nk_propertyf(state->nk.ctx, "#R:", 0, state->nk.bg.r, 1.0f, 0.01f, 0.005f);
+    //            state->nk.bg.g = nk_propertyf(state->nk.ctx, "#G:", 0, state->nk.bg.g, 1.0f, 0.01f, 0.005f);
+    //            state->nk.bg.b = nk_propertyf(state->nk.ctx, "#B:", 0, state->nk.bg.b, 1.0f, 0.01f, 0.005f);
+    //            state->nk.bg.a = nk_propertyf(state->nk.ctx, "#A:", 0, state->nk.bg.a, 1.0f, 0.01f, 0.005f);
+    //            nk_combo_end(state->nk.ctx);
+    //        }
+    //    }
+    //    nk_end(state->nk.ctx);
+    //}
+    //
+    //void draw(RendererState* state, VkCommandBuffer cmd, VkImageView targetImageView) {
+    //    if (nk_begin(state->nk.ctx, "Texture", nk_rect(500, 300, 200, 200),
+    //            NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE
+    //    )) {
+    //        struct nk_command_buffer *canvas = nk_window_get_canvas(state->nk.ctx);
+    //        struct nk_rect total_space = nk_window_get_content_region(state->nk.ctx);
+    //        nk_draw_image(canvas, total_space, &state->nk.img, nk_white);
+    //    }
+    //    nk_end(state->nk.ctx);
+    //}
 }

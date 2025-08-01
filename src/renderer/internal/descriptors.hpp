@@ -2,16 +2,9 @@
 #include "../renderer.hpp"
 #include "initializers.hpp"
 
-// BINDLESS DESCRIPTOR TYPES
-//  - uniform
-//  - storage buffer
-//  - texture (combined sampler)
-//  - image (storage image)
-//  - acceleration structure
+namespace flux::renderer::descriptors {
 
-namespace flux::renderer::vkutil {
-
-    void initDescriptors(RendererState* state) {
+    void init(RendererState* state) {
         static constexpr std::array<VkDescriptorType, 5> types = {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -73,73 +66,84 @@ namespace flux::renderer::vkutil {
         });
     }
 
-    void updatePendingWriteDescriptors(RendererState* state) {
-        vkUpdateDescriptorSets(state->device, state->pendingWriteDescriptors.size(), state->pendingWriteDescriptors.data(), 0, nullptr);
-        state->pendingWriteDescriptors.clear();
+    void updatePending(RendererState* state) {
+        vkUpdateDescriptorSets(state->device, state->pendingWriteDescriptors.write.size(), state->pendingWriteDescriptors.write.data(), 0, nullptr);
+        state->pendingWriteDescriptors.write.clear();
+        state->pendingWriteDescriptors.info.clear();
     }
 
-    void loadBufferDescriptor(RendererState* state, Buffer& buffer) {
-        if (buffer.id != BufferId::INVALID) return;
-        if (!state->availableBufferIds.empty()) {
-            buffer.id = state->availableBufferIds.back();
-            state->availableBufferIds.pop_back();
+    StorageBufferId registerStorageBuffer(RendererState* state, VkBuffer buffer, VkDeviceSize size) {
+        StorageBufferId result;
+        if (!state->availableDescriptorId.storageBuffer.empty()) {
+            result = state->availableDescriptorId.storageBuffer.back();
+            state->availableDescriptorId.storageBuffer.pop_back();
         }
-        else buffer.id = (BufferId)++state->currentBufferId;
-        buffer.descriptorInfo = {};
-        state->pendingWriteDescriptors.push_back({
+        else result = (StorageBufferId)state->nextAvailableDecriptorId.storageBuffer++;
+        state->pendingWriteDescriptors.write.push_back({
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = state->globalDescriptorSet,
-            .dstBinding = (u32)Binding::BUFFER,
-            .dstArrayElement = (u32)buffer.id,
+            .dstBinding = (u32)Binding::STORAGE_BUFFER,
+            .dstArrayElement = (u32)result,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo = &buffer.descriptorInfo,
         });
+        state->pendingWriteDescriptors.info.emplace_back();
+        state->pendingWriteDescriptors.info.back().buffer = {
+            .buffer = buffer,
+            .offset = 0,
+            .range = size,
+        };
+        state->pendingWriteDescriptors.write.back().pBufferInfo = &state->pendingWriteDescriptors.info.back().buffer;
+        return result;
     }
 
-    void loadTextureDescriptor(RendererState* state, Texture& texture) {
-        if (texture.id != TextureId::INVALID) return;
-        if (!state->availableTextureIds.empty()) {
-            texture.id = state->availableTextureIds.back();
-            state->availableTextureIds.pop_back();
+    CombinedSamplerId registerCombinedSampler(RendererState* state, VkImageView view, VkSampler sampler) {
+        CombinedSamplerId result;
+        if (!state->availableDescriptorId.combinedSampler.empty()) {
+            result = state->availableDescriptorId.combinedSampler.back();
+            state->availableDescriptorId.combinedSampler.pop_back();
         }
-        else texture.id = (TextureId)++state->currentTextureId;
-        texture.descriptorInfo = {
-            .sampler = texture.sampler,
-            .imageView = texture.view,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-        state->pendingWriteDescriptors.push_back({
+        else result = (CombinedSamplerId)state->nextAvailableDecriptorId.combinedSampler++;
+        state->pendingWriteDescriptors.write.push_back({
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = state->globalDescriptorSet,
-            .dstBinding = (u32)Binding::TEXTURE,
-            .dstArrayElement = (u32)texture.id,
+            .dstBinding = (u32)Binding::COMBINED_SAMPLER,
+            .dstArrayElement = (u32)result,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &texture.descriptorInfo,
         });
+        state->pendingWriteDescriptors.info.emplace_back();
+        state->pendingWriteDescriptors.info.back().image = {
+            .sampler = sampler,
+            .imageView = view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        state->pendingWriteDescriptors.write.back().pImageInfo = &state->pendingWriteDescriptors.info.back().image;
+        return result;
     }
 
-    void loadImageDescriptor(RendererState* state, Image& image) {
-        if (image.id != ImageId::INVALID) return;
-        if (!state->availableImageIds.empty()) {
-            image.id = state->availableImageIds.back();
-            state->availableImageIds.pop_back();
+    StorageImageId registerStorageImage(RendererState* state, VkImageView view) {
+        StorageImageId result;
+        if (!state->availableDescriptorId.storageImage.empty()) {
+            result = state->availableDescriptorId.storageImage.back();
+            state->availableDescriptorId.storageImage.pop_back();
         }
-        else image.id = (ImageId)++state->currentImageId;
-        image.descriptorInfo = {
-            .imageView = image.view,
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        };
-        state->pendingWriteDescriptors.push_back({
+        else result = (StorageImageId)state->nextAvailableDecriptorId.storageImage++;
+        state->pendingWriteDescriptors.write.push_back({
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet = state->globalDescriptorSet,
-            .dstBinding = (u32)Binding::IMAGE,
-            .dstArrayElement = (u32)image.id,
+            .dstBinding = (u32)Binding::STORAGE_IMAGE,
+            .dstArrayElement = (u32)result,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .pImageInfo = &image.descriptorInfo,
         });
+        state->pendingWriteDescriptors.info.emplace_back();
+        state->pendingWriteDescriptors.info.back().image = {
+            .imageView = view,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+        state->pendingWriteDescriptors.write.back().pImageInfo = &state->pendingWriteDescriptors.info.back().image;
+        return result;
     }
 
 }

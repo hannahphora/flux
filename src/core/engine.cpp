@@ -71,12 +71,6 @@ void engine::deinit(EngineState* state) {
 }
 
 void engine::update(EngineState* state) {
-
-    if (state->hotReloadTriggered) {
-        renderer::ui::loadImguiContext(state->renderer);
-        state->hotReloadTriggered = false;
-    }
-
     glfwPollEvents();
 
     input::update(state->input);

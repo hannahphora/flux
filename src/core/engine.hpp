@@ -10,8 +10,6 @@ namespace flux::engine {
 
     struct EngineState {
         bool initialised = false;
-        bool hotReloadTriggered = false;
-
         bool running = false;
         GLFWwindow* window = nullptr;
 

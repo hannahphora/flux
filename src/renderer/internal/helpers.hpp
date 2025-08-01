@@ -16,69 +16,6 @@ namespace flux::renderer {
 
 namespace flux::renderer::vkutil {
 
-    void destroySwapchain(RendererState* state) {
-        vkDestroySwapchainKHR(state->device, state->swapchain, nullptr);
-        for (auto& imageView : state->swapchainImageViews)
-            vkDestroyImageView(state->device, imageView, nullptr);
-        state->swapchainImages.clear();
-        state->swapchainImageViews.clear();
-    }
-
-    void createSwapchain(RendererState* state, u32 width, u32 height) {
-        auto swapchainBuilder = vkb::SwapchainBuilder{ state->physicalDevice, state->device, state->surface };
-        state->swapchainImageFormat = VK_FORMAT_B8G8R8A8_UNORM;
-
-        auto vkbSwapchain = swapchainBuilder
-            .use_default_format_selection()
-            .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR) // vsync
-            .set_desired_extent(width, height)
-            .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-            .build()
-            .value();
-        
-        state->swapchain = vkbSwapchain.swapchain;
-        state->swapchainExtent = vkbSwapchain.extent;
-        state->swapchainImageFormat = vkbSwapchain.image_format;
-        state->swapchainImages = vkbSwapchain.get_images().value();
-        state->swapchainImageViews = vkbSwapchain.get_image_views().value();
-    }
-
-    Image createImage(RendererState* state, u32 width, u32 height) {
-        Image result = {};
-        result.extent = { width, height, 1U };
-        result.format = VK_FORMAT_R16G16B16A16_SFLOAT; // hardcode f32 format
-        VkImageUsageFlags usages = {};
-        usages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        usages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        usages |= VK_IMAGE_USAGE_STORAGE_BIT;
-        usages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        auto imageInfo = vkinit::imageCreateInfo(result.format, usages, result.extent);
-        VmaAllocationCreateInfo imageAllocInfo = { // alloc from gpu local memory
-            .usage = VMA_MEMORY_USAGE_GPU_ONLY,
-            .requiredFlags = (VkMemoryPropertyFlags)VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        };
-        vmaCreateImage(state->allocator, &imageInfo, &imageAllocInfo, &result.image, &result.allocation, nullptr);
-        auto viewInfo = vkinit::imageViewCreateInfo(result.format, result.image, VK_IMAGE_ASPECT_COLOR_BIT);
-        vkCheck(vkCreateImageView(state->device, &viewInfo, nullptr, &result.view));
-        return result;
-    }
-
-    void rebuildSwapchain(RendererState* state) {
-        vkQueueWaitIdle(state->graphicsQueue);
-        
-        // destroy swapchain & draw img
-        destroySwapchain(state);
-        vkDestroyImageView(state->device, state->drawImage.view, nullptr);
-        vmaDestroyImage(state->allocator, state->drawImage.image, state->drawImage.allocation);
-        state->availableImageIds.emplace_back(state->drawImage.id);
-
-        auto [w, h] = utility::getWindowSize(state->engine);
-        createSwapchain(state, w, h);
-        state->drawImage = createImage(state, w, h);
-
-        // TODO: update draw img descriptor here
-    }
-
     void immediateSubmit(RendererState* state, std::function<void(VkCommandBuffer cmd)>&& fn) {
         vkCheck(vkResetFences(state->device, 1, &state->immediate.fence));
         vkCheck(vkResetCommandBuffer(state->immediate.cmdBuffer, 0));
@@ -92,24 +29,8 @@ namespace flux::renderer::vkutil {
         // NOTE: render fence will now block until graphics cmds finish execution
         auto cmdInfo = vkinit::cmdBufferSubmitInfo(cmd);
         auto submit = vkinit::submitInfo(&cmdInfo, nullptr, nullptr);
-        vkCheck(vkQueueSubmit2(state->graphicsQueue, 1, &submit, state->immediate.fence));
+        vkCheck(vkQueueSubmit2(state->queue.graphics, 1, &submit, state->immediate.fence));
         vkCheck(vkWaitForFences(state->device, 1, &state->immediate.fence, true, 9999999999));
-    }
-
-    bool loadShaderModule(const char* path, VkDevice device, VkShaderModule* out) {
-        std::ifstream file(path, std::ios::ate | std::ios::binary);
-        if (!file.is_open()) return false;
-        usize size = (usize)file.tellg();
-        std::vector<u32> buffer(size / sizeof(u32));
-        file.seekg(0);
-        file.read((char*)buffer.data(), size);
-        file.close();
-        VkShaderModuleCreateInfo createInfo = {
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = buffer.size() * sizeof(u32), // size in bytes
-            .pCode = buffer.data(),
-        };
-        return vkCreateShaderModule(device, &createInfo, nullptr, out) == VK_SUCCESS;
     }
 
     void initPipelineLayout(RendererState* state) {
@@ -131,4 +52,31 @@ namespace flux::renderer::vkutil {
         });
     }
 
+    void loadFuckassVkFns(RendererState* state) {
+        state->vkCreateShadersEXT = reinterpret_cast<PFN_vkCreateShadersEXT>(vkGetDeviceProcAddr(state->device, "vkCreateShadersEXT"));
+		state->vkDestroyShaderEXT = reinterpret_cast<PFN_vkDestroyShaderEXT>(vkGetDeviceProcAddr(state->device, "vkDestroyShaderEXT"));
+		state->vkCmdBindShadersEXT = reinterpret_cast<PFN_vkCmdBindShadersEXT>(vkGetDeviceProcAddr(state->device, "vkCmdBindShadersEXT"));
+		state->vkGetShaderBinaryDataEXT = reinterpret_cast<PFN_vkGetShaderBinaryDataEXT>(vkGetDeviceProcAddr(state->device, "vkGetShaderBinaryDataEXT"));
+		state->vkCmdBeginRenderingKHR = reinterpret_cast<PFN_vkCmdBeginRenderingKHR>(vkGetDeviceProcAddr(state->device, "vkCmdBeginRenderingKHR"));
+		state->vkCmdEndRenderingKHR = reinterpret_cast<PFN_vkCmdEndRenderingKHR>(vkGetDeviceProcAddr(state->device, "vkCmdEndRenderingKHR"));
+		state->vkCmdSetAlphaToCoverageEnableEXT = reinterpret_cast<PFN_vkCmdSetAlphaToCoverageEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetAlphaToCoverageEnableEXT"));
+		state->vkCmdSetColorBlendEnableEXT = reinterpret_cast<PFN_vkCmdSetColorBlendEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetColorBlendEnableEXT"));
+		state->vkCmdSetColorWriteMaskEXT = reinterpret_cast<PFN_vkCmdSetColorWriteMaskEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetColorWriteMaskEXT"));
+		state->vkCmdSetCullModeEXT = reinterpret_cast<PFN_vkCmdSetCullModeEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetCullModeEXT"));
+		state->vkCmdSetDepthBiasEnableEXT = reinterpret_cast<PFN_vkCmdSetDepthBiasEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetDepthBiasEnableEXT"));
+		state->vkCmdSetDepthCompareOpEXT = reinterpret_cast<PFN_vkCmdSetDepthCompareOpEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetDepthCompareOpEXT"));
+		state->vkCmdSetDepthTestEnableEXT = reinterpret_cast<PFN_vkCmdSetDepthTestEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetDepthTestEnableEXT"));
+		state->vkCmdSetDepthWriteEnableEXT = reinterpret_cast<PFN_vkCmdSetDepthWriteEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetDepthWriteEnableEXT"));
+		state->vkCmdSetFrontFaceEXT = reinterpret_cast<PFN_vkCmdSetFrontFaceEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetFrontFaceEXT"));
+		state->vkCmdSetPolygonModeEXT = reinterpret_cast<PFN_vkCmdSetPolygonModeEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetPolygonModeEXT"));
+		state->vkCmdSetPrimitiveRestartEnableEXT = reinterpret_cast<PFN_vkCmdSetPrimitiveRestartEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetPrimitiveRestartEnableEXT"));
+		state->vkCmdSetPrimitiveTopologyEXT = reinterpret_cast<PFN_vkCmdSetPrimitiveTopologyEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetPrimitiveTopologyEXT"));
+		state->vkCmdSetRasterizationSamplesEXT = reinterpret_cast<PFN_vkCmdSetRasterizationSamplesEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetRasterizationSamplesEXT"));
+		state->vkCmdSetRasterizerDiscardEnableEXT = reinterpret_cast<PFN_vkCmdSetRasterizerDiscardEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetRasterizerDiscardEnableEXT"));
+		state->vkCmdSetSampleMaskEXT = reinterpret_cast<PFN_vkCmdSetSampleMaskEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetSampleMaskEXT"));
+		state->vkCmdSetScissorWithCountEXT = reinterpret_cast<PFN_vkCmdSetScissorWithCountEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetScissorWithCountEXT"));
+		state->vkCmdSetStencilTestEnableEXT = reinterpret_cast<PFN_vkCmdSetStencilTestEnableEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetStencilTestEnableEXT"));
+		state->vkCmdSetVertexInputEXT = reinterpret_cast<PFN_vkCmdSetVertexInputEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetVertexInputEXT"));
+		state->vkCmdSetViewportWithCountEXT = reinterpret_cast<PFN_vkCmdSetViewportWithCountEXT>(vkGetDeviceProcAddr(state->device, "vkCmdSetViewportWithCountEXT"));;
+    }
 }

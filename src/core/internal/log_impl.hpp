@@ -9,9 +9,10 @@ namespace flux::log {
         "WARNING",
         "ERROR",
         "VULKAN",
+        "TODO",
     };
 
-    void abortIfError(level lvl) {
+    inline void abortIfError(level lvl) {
         if (lvl == level::ERROR) {
             flush();
             std::abort();
@@ -19,7 +20,7 @@ namespace flux::log {
     }
 }
 
-void log::buffered(const std::string& msg, level lvl) {
+inline void log::buffered(const std::string& msg, level lvl) {
     sprintf(buffer + index, "[%s] %s\n", levelStrings[(usize)lvl], msg.c_str());
     index += strlen(buffer + index);
     abortIfError(lvl);
@@ -28,12 +29,12 @@ void log::buffered(const std::string& msg, level lvl) {
         flush();
 }
 
-void log::unbuffered(const std::string& msg, level lvl) {
+inline void log::unbuffered(const std::string& msg, level lvl) {
     fprintf(config::log::OUTPUT_FILE, "[%s] %s\n", levelStrings[(usize)lvl], msg.c_str());
     abortIfError(lvl);
 }
 
-void log::flush() {
+inline void log::flush() {
     fwrite(buffer, 1, index, config::log::OUTPUT_FILE);
     memset(buffer, 0, index);
     index = 0;

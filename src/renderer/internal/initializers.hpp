@@ -3,7 +3,7 @@
 
 namespace flux::renderer::vkinit {
     
-    VkCommandPoolCreateInfo cmdPoolCreateInfo(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags = 0) {
+    inline VkCommandPoolCreateInfo cmdPoolCreateInfo(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags = 0) {
         return {
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
             .flags = flags,
@@ -11,7 +11,7 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkCommandBufferAllocateInfo cmdBufferAllocInfo(VkCommandPool pool, u32 count = 1) {
+    inline VkCommandBufferAllocateInfo cmdBufferAllocInfo(VkCommandPool pool, u32 count = 1) {
         return {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
             .commandPool = pool,
@@ -20,21 +20,21 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkFenceCreateInfo fenceCreateInfo(VkFenceCreateFlags flags = 0) {
+    inline VkFenceCreateInfo fenceCreateInfo(VkFenceCreateFlags flags = 0) {
         return {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = flags,
         };
     }
 
-    VkSemaphoreCreateInfo semaphoreCreateInfo(VkSemaphoreCreateFlags flags = 0) {
+    inline VkSemaphoreCreateInfo semaphoreCreateInfo(VkSemaphoreCreateFlags flags = 0) {
         return {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             .flags = flags,
         };
     }
 
-    VkCommandBufferBeginInfo cmdBufferBeginInfo(VkCommandBufferUsageFlags flags = 0) {
+    inline VkCommandBufferBeginInfo cmdBufferBeginInfo(VkCommandBufferUsageFlags flags = 0) {
         return {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
             .flags = flags,
@@ -42,7 +42,7 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkSemaphoreSubmitInfo semaphoreSubmitInfo(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore) {
+    inline VkSemaphoreSubmitInfo semaphoreSubmitInfo(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore) {
         return {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .semaphore = semaphore,
@@ -52,7 +52,7 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkCommandBufferSubmitInfo cmdBufferSubmitInfo(VkCommandBuffer cmd) {
+    inline VkCommandBufferSubmitInfo cmdBufferSubmitInfo(VkCommandBuffer cmd) {
         return {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
             .commandBuffer = cmd,
@@ -60,7 +60,7 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkSubmitInfo2 submitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalInfo, VkSemaphoreSubmitInfo* waitInfo) {
+    inline VkSubmitInfo2 submitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalInfo, VkSemaphoreSubmitInfo* waitInfo) {
         return {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
             .waitSemaphoreInfoCount = (waitInfo == nullptr) ? 0U : 1U,
@@ -72,7 +72,7 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkRenderingAttachmentInfo attachmentInfo(VkImageView view, VkClearValue* clear, VkImageLayout layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+    inline VkRenderingAttachmentInfo attachmentInfo(VkImageView view, VkClearValue* clear, VkImageLayout layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
         return {
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = view,
@@ -83,14 +83,33 @@ namespace flux::renderer::vkinit {
         };
     }
 
-    VkRenderingInfo renderingInfo(VkExtent2D renderExtent, VkRenderingAttachmentInfo* colorAttachment, VkRenderingAttachmentInfo* depthAttachment) {
+    inline VkRenderingInfo renderingInfo(VkExtent2D renderExtent, VkRenderingAttachmentInfo* color, VkRenderingAttachmentInfo* depth, VkRenderingAttachmentInfo* stencil) {
         return {
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = { { 0, 0 }, renderExtent },
             .layerCount = 1,
             .colorAttachmentCount = 1,
-            .pColorAttachments = colorAttachment,
-            .pDepthAttachment = depthAttachment,
+            .pColorAttachments = color,
+            .pDepthAttachment = depth,
+            .pStencilAttachment = stencil,
+        };
+    }
+
+    inline VkImageSubresourceRange imageSubresourceRange(VkImageAspectFlags aspectMask) {
+        return {
+            .aspectMask = aspectMask,
+            .baseMipLevel = 0,
+            .levelCount = VK_REMAINING_MIP_LEVELS,
+            .baseArrayLayer = 0,
+            .layerCount = VK_REMAINING_ARRAY_LAYERS,
+        };
+    }
+
+    inline VkImageMemoryBarrier imageMemoryBarrier() {
+        return {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         };
     }
 }

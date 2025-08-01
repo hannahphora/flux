@@ -2,6 +2,8 @@
 #include <common/common.hpp>
 #include <common/config.hpp>
 #include <common/math.hpp>
+#include <common/utility.hpp>
+#include <common/log.hpp>
 
 // silence clang for external includes
 #pragma clang diagnostic push
@@ -11,21 +13,16 @@
     #include <vkb/VkBootstrap.h>
     #include <vk_mem_alloc/vk_mem_alloc.h>
     #include <GLFW/glfw3.h>
-    #include <imgui/imgui.h>
-    #include <imgui/imgui_internal.h>
-    #include <imgui/backends/imgui_impl_glfw.h>
-    #include <imgui/backends/imgui_impl_vulkan.h>
 #pragma clang diagnostic pop
 
 namespace flux::config::renderer {
     static constexpr bool ENABLE_VALIDATION_LAYERS = true;
     static constexpr u32 FRAME_OVERLAP = 2;
-    static constexpr usize MAX_DESCRIPTOR_COUNT = std::numeric_limits<u16>::max(); // 65536
+    static constexpr u32 MAX_DESCRIPTOR_COUNT = std::numeric_limits<u16>::max(); // 65536
+    static constexpr u32 PUSH_CONSTANT_SIZE = 128;
 }
 
 namespace flux::renderer {
-    namespace ui { extern void loadImguiContext(RendererState* state); }
-
     bool init(RendererState* state);
     void deinit(RendererState* state);
     void draw(RendererState* state);
@@ -42,104 +39,130 @@ namespace flux::renderer {
         u32 textureID;
     };
 
-    enum class UniformId : u32 { INVALID = std::numeric_limits<u32>::max() };
-    enum class BufferId : u32 { INVALID = std::numeric_limits<u32>::max() };
-    enum class TextureId : u32 { INVALID = std::numeric_limits<u32>::max() };
-    enum class ImageId : u32 { INVALID = std::numeric_limits<u32>::max() };
-    enum class AccelerationStructureId : u32 { INVALID = std::numeric_limits<u32>::max() };
+    static constexpr u32 INVALID_DESCRIPTOR_ID_VALUE = std::numeric_limits<u32>::max();
+    enum class UniformBufferId : u32            { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
+    enum class StorageBufferId : u32            { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
+    enum class CombinedSamplerId : u32          { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
+    enum class StorageImageId : u32             { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
+    enum class AccelerationStructureId : u32    { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
 
     enum class Binding : u8 {
-        UNIFORM = 0,
-        BUFFER = 1,
-        TEXTURE = 2,
-        IMAGE = 3,
-        ACCELERATION_STRUCTURE = 4,
+        UNIFORM_BUFFER          = 0,
+        STORAGE_BUFFER          = 1,
+        COMBINED_SAMPLER        = 2,
+        STORAGE_IMAGE           = 3,
+        ACCELERATION_STRUCTURE  = 4,
     };
 
-    struct Buffer {
+    struct AllocatedBuffer {
+        VkBuffer buffer = nullptr;
         VmaAllocation allocation = nullptr;
-        BufferId id = BufferId::INVALID;
-        VkDescriptorBufferInfo descriptorInfo = {};
+        VmaAllocationInfo info = {};
     };
 
-    struct Texture {
+    struct AllocatedImage {
         VkImage image = nullptr;
+        VmaAllocation allocation = nullptr;
+        VkExtent3D extent = {};
+        VkFormat format = {};
+    };
+
+    struct CombinedSampler {
+        AllocatedImage image = {};
         VkImageView view = nullptr;
         VkSampler sampler = nullptr;
-        VmaAllocation allocation = nullptr;
-        VkExtent3D extent = {};
-        VkFormat format = {};
-        TextureId id = TextureId::INVALID;
+        CombinedSamplerId id = CombinedSamplerId::INVALID;
         VkDescriptorImageInfo descriptorInfo = {};
     };
 
-    struct Image {
-        VkImage image = nullptr;
+    struct StorageImage {
+        AllocatedImage image = {};
         VkImageView view = nullptr;
-        VmaAllocation allocation = nullptr;
-        VkExtent3D extent = {};
-        VkFormat format = {};
-        ImageId id = ImageId::INVALID;
-        VkDescriptorImageInfo descriptorInfo = {};
+        StorageImageId id = StorageImageId::INVALID;
+    };
+
+    struct Shader {
+        std::string name = "shader";
+        VkShaderStageFlagBits stage = {};
+        VkShaderStageFlags nextStage = {};
+        VkShaderEXT shader = nullptr;
+        VkShaderCreateInfoEXT createInfo = {};
+        std::vector<u32> spirv = {};
+    };
+
+    struct Vertex {
+        glm::vec3 position;
+        f32 uv_x;
+        glm::vec3 normal;
+        f32 uv_y;
+        glm::vec4 color;
     };
 
     struct RendererState {
         const EngineState* engine;
         bool initialised = false;
+        f32 renderScale = 1.0f;
 
         VkInstance instance = nullptr;
         VkDebugUtilsMessengerEXT debugMessenger = nullptr;
         VkPhysicalDevice physicalDevice = nullptr;
         VkDevice device = nullptr;
+        VkSurfaceKHR surface = nullptr;
         VmaAllocator allocator = nullptr;
 
         usize frameNumber = 0;
         FrameData frames[config::renderer::FRAME_OVERLAP] = {};
 
-        VkQueue graphicsQueue = nullptr;
-        VkQueue computeQueue = nullptr;
-        VkQueue transferQueue = nullptr;
-        u32 graphicsQueueFamily = {};
-        u32 computeQueueFamily = {};
-        u32 transferQueueFamily = {};
+        struct { VkQueue graphics, compute, transfer; } queue = {};
+        struct { u32 graphics, compute, transfer; } queueFamily = {};
 
-        VkSurfaceKHR surface = nullptr;
         VkSwapchainKHR swapchain = nullptr;
         VkFormat swapchainImageFormat = {};
         VkExtent2D swapchainExtent = {};
         VkExtent2D drawExtent = {};
 
-        // pipelines
         VkPipelineLayout globalPipelineLayout = nullptr;
-        VkPipeline gradientPipeline = nullptr;
-
-        // descriptors
         VkDescriptorSet globalDescriptorSet = {};
         VkDescriptorSetLayout globalDescriptorSetLayout = {};
         VkDescriptorPool globalDescriptorPool = nullptr;
 
-        u32 currentBufferId = 0;
-        u32 currentTextureId = 0;
-        u32 currentImageId = 0;
+        struct {
+            u32 uniformBuffer = 0;
+            u32 storageBuffer = 0;
+            u32 combinedSampler = 0;
+            u32 storageImage = 0;
+            u32 accelerationStructure = 0;
+        } nextAvailableDecriptorId = {};
 
         // lists of deleted/newly available descriptor ids
-        std::vector<UniformId> availableUniformIds = {};
-        std::vector<BufferId> availableBufferIds = {};
-        std::vector<TextureId> availableTextureIds = {};
-        std::vector<ImageId> availableImageIds = {};
-        std::vector<AccelerationStructureId> availableAclStructureIds = {};
-
-        std::vector<VkWriteDescriptorSet> pendingWriteDescriptors = {};
+        struct {
+            std::vector<UniformBufferId> uniformBuffer = {};
+            std::vector<StorageBufferId> storageBuffer = {};
+            std::vector<CombinedSamplerId> combinedSampler = {};
+            std::vector<StorageImageId> storageImage = {};
+            std::vector<AccelerationStructureId> accelerationStructure = {};
+        } availableDescriptorId = {};
+        
+        struct PendingWriteDescriptors {
+            union DescriptorInfo { VkDescriptorImageInfo image; VkDescriptorBufferInfo buffer; };
+            std::vector<VkWriteDescriptorSet> write = {};
+            std::vector<DescriptorInfo> info = {};
+        } pendingWriteDescriptors = {};
         
         std::vector<VkImage> swapchainImages = {};
         std::vector<VkImageView> swapchainImageViews = {};
 
-        Image drawImage = {};
+        StorageImage drawImage = {};
+        StorageImage depthStencil = {};
 
-        // imgui
-        ImGuiContext* imguiContext = nullptr;
-        void* imguiVulkanData = nullptr;
-        VkDescriptorPool imguiDescriptorPool = nullptr;
+        // nk ui
+        struct {
+            struct nk_context {}; struct nk_colorf {}; struct nk_image {}; // TMP
+            struct nk_context* ctx  = nullptr;
+            struct nk_colorf bg = {};
+            struct nk_image img = {};
+            VkSemaphore semaphore = nullptr;
+        } nk = {};
 
         // immediate submit structures
         struct {
@@ -149,5 +172,37 @@ namespace flux::renderer {
         } immediate = {};
 
         DeinitStack deinitStack = {};
+
+        PFN_vkCreateShadersEXT vkCreateShadersEXT{ VK_NULL_HANDLE };
+        PFN_vkDestroyShaderEXT vkDestroyShaderEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdBindShadersEXT vkCmdBindShadersEXT{ VK_NULL_HANDLE };
+        PFN_vkGetShaderBinaryDataEXT vkGetShaderBinaryDataEXT{ VK_NULL_HANDLE };
+
+        // VK_EXT_shader_objects requires render passes to be dynamic
+        PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{ VK_NULL_HANDLE };
+        PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR{ VK_NULL_HANDLE };
+
+        // With VK_EXT_shader_object pipeline state must be set at command buffer creation using these functions
+        PFN_vkCmdSetAlphaToCoverageEnableEXT vkCmdSetAlphaToCoverageEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetColorBlendEnableEXT vkCmdSetColorBlendEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetColorWriteMaskEXT vkCmdSetColorWriteMaskEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetCullModeEXT vkCmdSetCullModeEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetDepthBiasEnableEXT vkCmdSetDepthBiasEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetDepthCompareOpEXT vkCmdSetDepthCompareOpEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetDepthTestEnableEXT vkCmdSetDepthTestEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetDepthWriteEnableEXT vkCmdSetDepthWriteEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetFrontFaceEXT vkCmdSetFrontFaceEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetPrimitiveRestartEnableEXT vkCmdSetPrimitiveRestartEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetPrimitiveTopologyEXT vkCmdSetPrimitiveTopologyEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetRasterizationSamplesEXT vkCmdSetRasterizationSamplesEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetRasterizerDiscardEnableEXT vkCmdSetRasterizerDiscardEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetSampleMaskEXT vkCmdSetSampleMaskEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetScissorWithCountEXT vkCmdSetScissorWithCountEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetStencilTestEnableEXT vkCmdSetStencilTestEnableEXT{ VK_NULL_HANDLE };
+        PFN_vkCmdSetViewportWithCountEXT vkCmdSetViewportWithCountEXT{ VK_NULL_HANDLE };
+
+        // VK_EXT_vertex_input_dynamic_state
+        PFN_vkCmdSetVertexInputEXT vkCmdSetVertexInputEXT{ VK_NULL_HANDLE };
     };
 }
