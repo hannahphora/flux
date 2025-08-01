@@ -1,4 +1,5 @@
 const std = @import("std");
+const zcc = @import("compile_commands");
 
 const BuildMode = enum { debug, release };
 
@@ -68,6 +69,12 @@ pub fn build(builder: *std.Build) !void {
     flux.addIncludePath(b.path("deps/include/meshoptimizer"));
     flux.addIncludePath(b.path("deps/include/imgui"));
     flux.addIncludePath(b.path("deps/include/imgui/backends"));
+
+    // generate compile_commands.json for clangd
+    var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
+    try targets.append(host);
+    try targets.append(engine);
+    _ = zcc.createStep(b, "cdb", try targets.toOwnedSlice());
 
     try compileShaders();
 
