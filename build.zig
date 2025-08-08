@@ -18,6 +18,7 @@ pub fn build(builder: *std.Build) !void {
 
     verbose = b.option(bool, "verbose", "enable verbose logging") orelse false;
     const hot_reloading = b.option(bool, "hot_reloading", "enables hot reloading (builds flux as dynamic lib)") orelse true;
+    const wait_on_startup = b.option(bool, "wait_on_startup", "wait for keypress to initialise engine") orelse false;
 
     const flux = b.createModule(.{
         .target = target,
@@ -60,9 +61,9 @@ pub fn build(builder: *std.Build) !void {
     flux.addIncludePath(b.path("deps/include/meshoptimizer"));
 
     if (hot_reloading) flux.addCMacro("HOT_RELOADING", "");
+    if (wait_on_startup) flux.addCMacro("WAIT_ON_STARTUP", "");
 
     try compileShaders();
-
     b.installArtifact(engine);
 
     if (target.result.os.tag == .windows) {

@@ -178,8 +178,6 @@ bool renderer::init(RendererState* state) {
     descriptors::init(state);
     vkutil::initPipelineLayout(state);
 
-    vkutil::loadFuckassVkFns(state);
-
     // create draw image
     //auto [ maxW, maxH ] = utility::getMonitorRes(state->engine);
     state->drawImage.image = res::allocateImage(
