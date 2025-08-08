@@ -35,21 +35,21 @@ namespace flux::renderer::res {
         vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
     }
 
-    AllocatedImage allocateImage(VmaAllocator allocator, u32 w, u32 h, VkImageUsageFlags usages) {
+    AllocatedImage allocateImage(VmaAllocator allocator, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false) {
         AllocatedImage result = {
-            .extent = { w, h, 1U },
-            .format = VK_FORMAT_R16G16B16A16_SFLOAT, // hardcode f32 format
+            .extent = size,
+            .format = format,
         };
         VkImageCreateInfo info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .imageType = VK_IMAGE_TYPE_2D,
             .format = result.format,
             .extent = result.extent,
-            .mipLevels = 1,
+            .mipLevels = (mipmapped) ? static_cast<u32>(std::floor(std::log2(std::max(size.width, size.height)))) + 1 : 1,
             .arrayLayers = 1,
             .samples = VK_SAMPLE_COUNT_1_BIT, // for MSAA, default to 1 sample ppx
             .tiling = VK_IMAGE_TILING_OPTIMAL, // OPTIMAL for smallest size on gpu, LINEAR for cpu readback
-            .usage = usages,
+            .usage = usage,
         };
         VmaAllocationCreateInfo allocInfo = { // gpu local memory
             .usage = VMA_MEMORY_USAGE_GPU_ONLY,

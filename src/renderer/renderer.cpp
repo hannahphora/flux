@@ -182,7 +182,12 @@ bool renderer::init(RendererState* state) {
 
     // create draw image
     //auto [ maxW, maxH ] = utility::getMonitorRes(state->engine);
-    state->drawImage.image = res::allocateImage(state->allocator, w, h, res::STORAGE_IMAGE_USES);
+    state->drawImage.image = res::allocateImage(
+        state->allocator,
+        { w, h },
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        res::STORAGE_IMAGE_USES
+    );
     state->drawImage.view = res::createImageView(state, state->drawImage.image);
     state->drawImage.id = descriptors::registerStorageImage(state, state->drawImage.view);
 	state->deinitStack.emplace_back([state] {
@@ -192,7 +197,12 @@ bool renderer::init(RendererState* state) {
 
     // create depth stencil
     //auto [ maxW, maxH ] = utility::getMonitorRes(state->engine);
-    state->depthStencil.image = res::allocateImage(state->allocator, w, h, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    state->depthStencil.image = res::allocateImage(
+        state->allocator,
+        { w, h },
+        VK_FORMAT_R16G16B16A16_SFLOAT,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+    );
     state->depthStencil.view = res::createImageView(state, state->depthStencil.image);
     state->depthStencil.id = descriptors::registerStorageImage(state, state->depthStencil.view);
 	state->deinitStack.emplace_back([state] {

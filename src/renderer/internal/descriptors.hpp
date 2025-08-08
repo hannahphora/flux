@@ -67,7 +67,7 @@ namespace flux::renderer::descriptors {
     }
 
     void updatePending(RendererState* state) {
-        vkUpdateDescriptorSets(state->device, state->pendingWriteDescriptors.write.size(), state->pendingWriteDescriptors.write.data(), 0, nullptr);
+        vkUpdateDescriptorSets(state->device, (u32)state->pendingWriteDescriptors.write.size(), state->pendingWriteDescriptors.write.data(), 0, nullptr);
         state->pendingWriteDescriptors.write.clear();
         state->pendingWriteDescriptors.info.clear();
     }

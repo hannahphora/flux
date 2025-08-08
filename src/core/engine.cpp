@@ -20,48 +20,47 @@ static void glfw_error_callback(i32 error, const char* description) {
 void engine::init(EngineState* state) {
 
     // init glfw
-    log::buffered("initialising glfw");
+    log::unbuffered("initialising glfw");
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         log::unbuffered("failed to init glfw", log::level::ERROR);
     state->deinitStack.emplace_back([] {
-        log::buffered("deinitialising glfw");
+        log::unbuffered("deinitialising glfw");
         glfwTerminate();
     });
 
     // create window
-    log::buffered("creating window");
+    log::unbuffered("creating window");
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     if (!(state->window = glfwCreateWindow(config::WINDOW_WIDTH, config::WINDOW_HEIGHT, config::APP_NAME.c_str(), nullptr, nullptr)))
         log::unbuffered("failed to create window", log::level::ERROR);
     state->deinitStack.emplace_back([state] {
-        log::buffered("destroying window");
+        log::unbuffered("destroying window");
         glfwDestroyWindow(state->window);
     });
 
     // init renderer
-    log::buffered("initialising renderer");
+    log::unbuffered("initialising renderer");
     if (!renderer::init(state->renderer = new RendererState { .engine = state }))
         log::unbuffered("failed to init renderer", log::level::ERROR);
     state->deinitStack.emplace_back([state] {
-        log::buffered("deinitialising renderer");
+        log::unbuffered("deinitialising renderer");
         renderer::deinit(state->renderer);
         delete state->renderer;
     });
 
     // init input
-    log::buffered("initialising input");
+    log::unbuffered("initialising input");
     if (!input::init(state->input = new InputState { .engine = state }))
         log::unbuffered("failed to init input", log::level::ERROR);
     state->deinitStack.emplace_back([state] {
-        log::buffered("deinitialising input");
+        log::unbuffered("deinitialising input");
         input::deinit(state->input);
         delete state->input;
     });
 
     state->initialised = true;
-    log::flush();
 }
 
 void engine::deinit(EngineState* state) {

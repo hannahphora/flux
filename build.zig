@@ -1,34 +1,27 @@
 const std = @import("std");
 const zcc = @import("compile_commands");
 
-const BuildMode = enum { debug, release };
-
-const compileFlags = .{
-    "-Wall",
-    "-Wextra",
-    "-Werror",
+const additional_flags: []const []const u8 = &.{
+    "-std=c++20",
     "-Wno-unused-parameter",
     "-Wno-missing-field-initializers",
-    "-pedantic-errors",
-    "-Wc++11-extensions",
-    "-std=c++20",
-    "-g",
 };
+const debug_flags = warning_flags ++ additional_flags;
 
 var b: *std.Build = undefined;
 var verbose: bool = undefined;
 
 pub fn build(builder: *std.Build) !void {
     b = builder;
-    const options = b.addOptions();
     const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
     verbose = b.option(bool, "verbose", "enable verbose logging") orelse false;
-    const build_mode = b.option(BuildMode, "build_mode", "build mode") orelse .debug;
-    options.addOption(BuildMode, "build_mode", build_mode);
+    const hot_reloading = b.option(bool, "hot_reloading", "enables hot reloading (builds flux as dynamic lib)") orelse true;
 
     const flux = b.createModule(.{
         .target = target,
-        .optimize = if (build_mode == .debug) .Debug else .ReleaseFast,
+        .optimize = optimize,
         .link_libcpp = true,
     });
 
@@ -36,18 +29,18 @@ pub fn build(builder: *std.Build) !void {
         .root_module = flux,
         .name = "host",
     });
-    host.addCSourceFile(.{ .file = b.path("src/host.cpp"), .flags = &compileFlags });
+    host.addCSourceFile(.{ .file = b.path("src/host.cpp"), .flags = debug_flags });
 
     const engine = b.addLibrary(.{
         .root_module = flux,
         .name = "flux",
-        .linkage = .dynamic,
+        .linkage = if (hot_reloading) .dynamic else .static,
     });
     engine.addCSourceFiles(.{ .files = &.{
         "src/core/engine.cpp",
         "src/renderer/renderer.cpp",
         "src/input/input.cpp",
-    }, .flags = &compileFlags });
+    }, .flags = debug_flags });
 
     try addCSourceFilesInDir(engine, "deps/include/vkb", &.{});
     try addCSourceFilesInDir(engine, "deps/include/meshoptimizer", &.{});
@@ -66,11 +59,7 @@ pub fn build(builder: *std.Build) !void {
     flux.addIncludePath(b.path("deps/include"));
     flux.addIncludePath(b.path("deps/include/meshoptimizer"));
 
-    // generate compile_commands.json for clangd
-    var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
-    try targets.append(host);
-    try targets.append(engine);
-    _ = zcc.createStep(b, "cdb", try targets.toOwnedSlice());
+    if (hot_reloading) flux.addCMacro("HOT_RELOADING", "");
 
     try compileShaders();
 
@@ -87,9 +76,18 @@ pub fn build(builder: *std.Build) !void {
     const run = b.addRunArtifact(host);
     run.step.dependOn(&b.addInstallArtifact(host, .{}).step);
     run.step.dependOn(b.getInstallStep());
-    run.stdio = .inherit;
-    run.setCwd(.{ .cwd_relative = b.exe_dir });
+    if (hot_reloading) {
+        run.stdio = .inherit;
+        run.setCwd(.{ .cwd_relative = b.exe_dir });
+    }
     b.step("run", "Run the host").dependOn(&run.step);
+
+    // generate compile_commands.json
+    var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
+    defer targets.deinit();
+    try targets.append(host);
+    try targets.append(engine);
+    _ = zcc.createStep(b, "cmds", try targets.toOwnedSlice());
 }
 
 fn compileShaders() !void {
@@ -135,3 +133,30 @@ fn addCSourceFilesInDir(c: *std.Build.Step.Compile, path: []const u8, flags: []c
         }
     }
 }
+
+const runtime_check_flags: []const []const u8 = &.{
+    "-fsanitize=array-bounds,null,alignment,unreachable,address,leak", // asan and leak are linux/macos only in 0.14.1
+    "-fstack-protector-strong",
+    "-fno-omit-frame-pointer",
+};
+
+const warning_flags: []const []const u8 = &.{
+    "-Wall",
+    "-Wextra",
+    "-Wnull-dereference",
+    "-Wuninitialized",
+    "-Wshadow",
+    "-Wpointer-arith",
+    "-Wstrict-aliasing",
+    "-Wstrict-overflow=5",
+    "-Wcast-align",
+    "-Wconversion",
+    "-Wsign-conversion",
+    "-Wfloat-equal",
+    "-Wformat=2",
+    "-Wswitch-enum",
+    "-Wmissing-declarations",
+    "-Wunused",
+    "-Wundef",
+    "-Werror",
+};
