@@ -45,9 +45,8 @@ i32 main() {
     load_dl();
     find_init_fn();
     find_update_fn();
-#endif // HOT_RELOADING
-
     while (!kbhit());
+#endif // HOT_RELOADING
 
     auto state = new EngineState;
     init_fn(state);
