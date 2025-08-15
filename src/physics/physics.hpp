@@ -4,15 +4,15 @@
 // silence clang for external includes
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Weverything"
-    #include <GLFW/glfw3.h>
+    
 #pragma clang diagnostic pop
 
-namespace flux::input {
-    bool init(InputState* state);
-    void deinit(InputState* state);
-    void update(InputState* state);
+namespace flux::physics {
+    bool init(PhysicsState* state);
+    void deinit(PhysicsState* state);
+    void update(PhysicsState* state);
 
-    struct InputState {
+    struct PhysicsState {
         const EngineState* engine;
         bool initialised = false;
     };

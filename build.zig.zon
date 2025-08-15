@@ -8,6 +8,7 @@
         "build.zig.zon",
         "src",
     },
+
     .dependencies = .{
         .compile_commands = .{
             .url = "https://github.com/the-argus/zig-compile-commands/archive/11cc2917816875aae4890e0a899f810e33570d70.tar.gz",

@@ -2,6 +2,8 @@
 
 #include <core/engine.hpp>
 
+using namespace input;
+
 bool input::init(InputState* state) {
     state->initialised = true;
     return true;

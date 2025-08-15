@@ -1,9 +1,9 @@
 #pragma once
-#include <common/common.hpp>
-#include <common/config.hpp>
-#include <common/math.hpp>
-#include <common/utility.hpp>
-#include <common/log.hpp>
+#include <common.hpp>
+#include <config.hpp>
+#include <engine/subsystems/math.hpp>
+#include <engine/subsystems/utility.hpp>
+#include <engine/subsystems/log.hpp>
 
 // silence clang for external includes
 #pragma clang diagnostic push
@@ -11,7 +11,7 @@
     #include <vulkan/vulkan.h>
     #include <vulkan/vk_enum_string_helper.h>
     #include <vkb/VkBootstrap.h>
-    #include <vk_mem_alloc/vk_mem_alloc.h>
+    #include <vma/flux_vk_mem_alloc.h>
     #include <GLFW/glfw3.h>
 #pragma clang diagnostic pop
 
