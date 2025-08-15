@@ -1,5 +1,5 @@
 #pragma once
-#include <common/log.hpp>
+#include "log.hpp"
 
 namespace flux::log {
     static char buffer[config::log::BUFFER_SIZE] = {0};

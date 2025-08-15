@@ -1,7 +1,5 @@
 #include "audio.hpp"
 
-#include <engine/engine.hpp>
-
 using namespace audio;
 
 bool audio::init(AudioState* state) {

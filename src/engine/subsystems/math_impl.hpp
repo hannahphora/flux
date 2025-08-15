@@ -1,5 +1,5 @@
 #pragma once
-#include <common/math.hpp>
+#include "math.hpp"
 
 namespace flux::math {
     static std::random_device randomDevice;

@@ -1,14 +1,18 @@
 #pragma once
-#include "../renderer.hpp"
-#include "initializers.hpp"
+#include "ui.hpp"
 
-#include <common/utility.hpp>
+#include <engine/subsystems/utility.hpp>
 
-namespace flux::renderer::ui {
+using namespace renderer;
 
-    void init(RendererState* state) {}
+void ui::init(RendererState* state) {
 
-    void startFrame(RendererState* state) {}
+}
+
+void ui::startFrame(RendererState* state) {
+
+}
+
+void ui::draw(RendererState* state, VkCommandBuffer cmd, VkImageView targetImageView) {
     
-    void draw(RendererState* state, VkCommandBuffer cmd, VkImageView targetImageView) {}
 }

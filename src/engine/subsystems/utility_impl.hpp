@@ -1,7 +1,11 @@
 #pragma once
-#include <common/utility.hpp>
+#include "utility.hpp"
 
-#include <GLFW/glfw3.h>
+// silence clang for external includes
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+    #include <GLFW/glfw3.h>
+#pragma clang diagnostic pop
 
 void utility::flushDeinitStack(DeinitStack* deinitStack) {
     while (!deinitStack->empty()) {

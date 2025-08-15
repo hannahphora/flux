@@ -1,7 +1,5 @@
 #include "physics.hpp"
 
-#include <core/engine.hpp>
-
 using namespace physics;
 
 bool physics::init(PhysicsState* state) {

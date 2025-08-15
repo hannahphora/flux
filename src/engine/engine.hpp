@@ -1,7 +1,11 @@
 #pragma once
 #include <common.hpp>
 
-#include <GLFW/glfw3.h>
+// silence clang for external includes
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+    #include <GLFW/glfw3.h>
+#pragma clang diagnostic pop
 
 namespace flux::engine {
     void init(EngineState* state);
@@ -15,8 +19,10 @@ namespace flux::engine {
 
         RendererState* renderer = nullptr;
         InputState* input = nullptr;
-        AudioState* input = nullptr;
-        PhysicsState* input = nullptr;
+        AudioState* audio = nullptr;
+        PhysicsState* physics = nullptr;
+        NetworkingState* networking = nullptr;
+        AiState* ai = nullptr;
 
         DeinitStack deinitStack = {};
     };

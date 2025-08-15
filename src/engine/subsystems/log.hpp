@@ -1,6 +1,6 @@
 #pragma once
-#include <common/common.hpp>
-#include <common/config.hpp>
+#include <common.hpp>
+#include <config.hpp>
 
 namespace flux::log {
 

@@ -1,14 +1,15 @@
 #define VMA_IMPLEMENTATION
 #include "renderer.hpp"
 
-#include <core/engine.hpp>
+#include <engine/engine.hpp>
 
 #include "internal/images.hpp"
 #include "internal/helpers.hpp"
 #include "internal/descriptors.hpp"
-#include "internal/ui.hpp"
 #include "internal/swapchain.hpp"
 #include "internal/resources.hpp"
+
+#include "subsystems/ui_impl.hpp"
 
 using namespace renderer;
 

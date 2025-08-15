@@ -56,6 +56,8 @@ pub fn build(b: *std.Build) !void {
         "src/input/input.cpp",
         "src/audio/audio.cpp",
         "src/physics/physics.cpp",
+        "src/physics/networking.cpp",
+        "src/physics/ai.cpp",
     }, .flags = debug_flags });
 
     // get VULKAN_SDK paths

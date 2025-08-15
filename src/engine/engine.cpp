@@ -4,17 +4,11 @@
 #include <renderer/renderer.hpp>
 #include <input/input.hpp>
 
-#include "common/log.hpp"
-#include "internal/log.cpp"
-
-#include "common/utility.hpp"
-#include "internal/utility.cpp"
-
-#include "common/math.hpp"
-#include "internal/math.cpp"
-
-#include "common/allocators.hpp"
-#include "internal/allocators.cpp"
+#include "subsystems/log_impl.hpp"
+#include "subsystems/ecs_impl.hpp"
+#include "subsystems/utility_impl.hpp"
+#include "subsystems/math_impl.hpp"
+#include "subsystems/allocators_impl.hpp"
 
 i32 main() {
     auto state = new EngineState;

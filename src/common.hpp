@@ -40,6 +40,7 @@ namespace flux {
         AUDIO,
         PHYSICS,
         NETWORKING,
+        AI,
     };
 
     namespace engine { struct EngineState; }
@@ -47,6 +48,8 @@ namespace flux {
     namespace input { struct InputState; }
     namespace audio { struct AudioState; }
     namespace physics { struct PhysicsState; }
+    namespace networking { struct NetworkingState; }
+    namespace ai { struct AiState; }
 }
 
 using namespace flux;
@@ -55,5 +58,7 @@ using flux::renderer::RendererState;
 using flux::input::InputState;
 using flux::audio::AudioState;
 using flux::physics::PhysicsState;
+using flux::networking::NetworkingState;
+using flux::ai::AiState;
 
 using DeinitStack = std::vector<std::function<void()>>;

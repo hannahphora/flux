@@ -1,11 +1,5 @@
 #pragma once
-#include <common/common.hpp>
-
-// silence clang for external includes
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-    
-#pragma clang diagnostic pop
+#include <common.hpp>
 
 namespace flux::physics {
     bool init(PhysicsState* state);

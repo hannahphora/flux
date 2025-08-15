@@ -1,8 +1,6 @@
 #pragma once
-#include <common/common.hpp>
+#include <common.hpp>
 
-namespace flux::allocators {
-
-
+namespace flux::alloc {
 
 }

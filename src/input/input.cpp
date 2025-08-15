@@ -1,6 +1,6 @@
 #include "input.hpp"
 
-#include <core/engine.hpp>
+#include <engine/engine.hpp>
 
 using namespace input;
 
