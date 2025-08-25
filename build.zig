@@ -15,13 +15,12 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const flux = b.createModule(.{
-        .target = target,
-        .optimize = optimize,
-        .link_libcpp = true,
-    });
     const exe = b.addExecutable(.{
-        .root_module = flux,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libcpp = true,
+        }),
         .name = "flux",
     });
 
@@ -45,24 +44,24 @@ pub fn build(b: *std.Build) !void {
     try addCSourceFilesInDir(b, exe, "deps/src/vkb", &.{});
 
     // dep linking
-    flux.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
-    flux.addLibraryPath(b.path("deps/lib"));
-    flux.linkSystemLibrary(if (target.result.os.tag == .windows) "vulkan-1" else "vulkan", .{});
-    flux.linkSystemLibrary("glfw3", .{});
+    exe.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
+    exe.addLibraryPath(b.path("deps/lib"));
+    exe.root_module.linkSystemLibrary(if (target.result.os.tag == .windows) "vulkan-1" else "vulkan", .{});
+    exe.root_module.linkSystemLibrary("glfw3", .{});
     if (target.result.os.tag == .windows) {
         b.installBinFile("deps/lib/glfw3.dll", "glfw3.dll");
     } else {
         b.installBinFile("deps/lib/glfw3.so", "glfw3.so.0");
-        flux.addRPathSpecial("$ORIGIN");
+        exe.root_module.addRPathSpecial("$ORIGIN");
     }
 
     // dep includes
-    flux.addIncludePath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/include", .{path}) });
-    flux.addIncludePath(b.path("src"));
-    flux.addIncludePath(b.path("deps/include"));
-    flux.addIncludePath(b.path("deps/include/meshoptimizer"));
-    flux.addIncludePath(b.path("deps/include/imgui"));
-    flux.addIncludePath(b.path("deps/include/imgui/backends"));
+    exe.addIncludePath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/include", .{path}) });
+    exe.addIncludePath(b.path("src"));
+    exe.addIncludePath(b.path("deps/include"));
+    exe.addIncludePath(b.path("deps/include/meshoptimizer"));
+    exe.addIncludePath(b.path("deps/include/imgui"));
+    exe.addIncludePath(b.path("deps/include/imgui/backends"));
 
     try compileShaders(b, "res/shaders");
     b.installArtifact(exe);
