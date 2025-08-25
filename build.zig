@@ -1,33 +1,10 @@
 const std = @import("std");
-const zcc = @import("compile_commands");
 
-const additional_flags: []const []const u8 = &.{"-std=c++20"};
-const runtime_check_flags: []const []const u8 = &.{
-    // asan and leak are linux/macos only in 0.14.1
-    "-fsanitize=array-bounds,null,alignment,unreachable,undefined,address,leak",
-    "-fstack-protector-strong",
-    "-fno-omit-frame-pointer",
-};
-const warning_flags: []const []const u8 = &.{
-    "-Wall",
-    "-Wextra",
-    "-Wpedantic",
-    "-Wnull-dereference",
-    "-Wuninitialized",
-    "-Wshadow",
-    "-Wpointer-arith",
-    "-Wstrict-aliasing",
-    "-Wstrict-overflow=5",
-    "-Wcast-align",
-    "-Wconversion",
-    "-Wsign-conversion",
-    "-Wfloat-equal",
-    "-Wformat=2",
-    "-Wswitch-enum",
-    "-Wmissing-declarations",
-    "-Wunused",
-    "-Wundef",
-    "-Werror",
+// NOTE: zcc currently broken with zig 0.15.1
+//const zcc = @import("compile_commands");
+
+const additional_flags: []const []const u8 = &.{
+    "-std=c++20",
     // warning disables
     "-Wno-unused-parameter",
     "-Wno-missing-field-initializers",
@@ -35,7 +12,6 @@ const warning_flags: []const []const u8 = &.{
 const debug_flags = warning_flags ++ additional_flags;
 
 pub fn build(b: *std.Build) !void {
-    // build options
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -56,8 +32,6 @@ pub fn build(b: *std.Build) !void {
         "src/input/input.cpp",
         "src/audio/audio.cpp",
         "src/physics/physics.cpp",
-        "src/physics/networking.cpp",
-        "src/physics/ai.cpp",
     }, .flags = debug_flags });
 
     // get VULKAN_SDK paths
@@ -90,7 +64,7 @@ pub fn build(b: *std.Build) !void {
     flux.addIncludePath(b.path("deps/include/imgui"));
     flux.addIncludePath(b.path("deps/include/imgui/backends"));
 
-    try compileShaders(b);
+    try compileShaders(b, "res/shaders");
     b.installArtifact(exe);
 
     // run option
@@ -98,25 +72,20 @@ pub fn build(b: *std.Build) !void {
     run.step.dependOn(b.getInstallStep());
     if (b.args) |args| run.addArgs(args);
     b.step("run", "Run the engine").dependOn(&run.step);
-
-    // generate compile_commands.json option
-    var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
-    defer targets.deinit();
-    try targets.append(exe);
-    _ = zcc.createStep(b, "cmds", try targets.toOwnedSlice());
 }
 
-fn compileShaders(b: *std.Build) !void {
-    var dir = try b.build_root.handle.openDir("res/shaders", .{ .iterate = true });
-    defer dir.close();
-    var walker = try dir.walk(b.allocator);
-    defer walker.deinit();
+fn compileShaders(b: *std.Build, baseDirPath: []const u8) !void {
+    var baseDirHandle = try b.build_root.handle.openDir(baseDirPath, .{ .iterate = true });
+    defer baseDirHandle.close();
+    var dirWalker = try baseDirHandle.walk(b.allocator);
+    defer dirWalker.deinit();
 
-    while (try walker.next()) |entry| {
+    while (try dirWalker.next()) |entry| {
         if (entry.kind == .file and std.mem.eql(u8, std.fs.path.extension(entry.basename), ".slang")) {
-            const name = std.fs.path.stem(entry.basename);
-            const source = try std.fmt.allocPrint(b.allocator, "res/shaders/{s}.slang", .{name});
-            const outpath = try std.fmt.allocPrint(b.allocator, "res/shaders/{s}.spv", .{name});
+            const src = try std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ baseDirPath, entry.path });
+            defer b.allocator.free(src);
+            const dst = try std.mem.replaceOwned(u8, b.allocator, src, ".slang", ".spv");
+            defer b.allocator.free(dst);
 
             const shader_comp = b.addSystemCommand(&.{"slangc"});
             shader_comp.addArgs(&.{
@@ -125,10 +94,9 @@ fn compileShaders(b: *std.Build) !void {
                 "-fvk-use-entrypoint-name",
                 "-o",
             });
-            const output = shader_comp.addOutputFileArg(outpath);
-            shader_comp.addFileArg(b.path(source));
-
-            b.getInstallStep().dependOn(&b.addInstallBinFile(output, outpath).step);
+            const output = shader_comp.addOutputFileArg(dst);
+            shader_comp.addFileArg(b.path(src));
+            b.getInstallStep().dependOn(&b.addInstallBinFile(output, dst).step);
         }
     }
 }
@@ -148,3 +116,30 @@ fn addCSourceFilesInDir(b: *std.Build, c: *std.Build.Step.Compile, path: []const
         }
     }
 }
+
+const runtime_check_flags: []const []const u8 = &.{
+    "-fsanitize=array-bounds,null,alignment,unreachable,undefined,address,leak",
+    "-fstack-protector-strong",
+    "-fno-omit-frame-pointer",
+};
+const warning_flags: []const []const u8 = &.{
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Wnull-dereference",
+    "-Wuninitialized",
+    "-Wshadow",
+    "-Wpointer-arith",
+    "-Wstrict-aliasing",
+    "-Wstrict-overflow=5",
+    "-Wcast-align",
+    "-Wconversion",
+    "-Wsign-conversion",
+    "-Wfloat-equal",
+    "-Wformat=2",
+    "-Wswitch-enum",
+    "-Wmissing-declarations",
+    "-Wunused",
+    "-Wundef",
+    "-Werror",
+};
