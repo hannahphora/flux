@@ -81,15 +81,6 @@ namespace flux::renderer {
         StorageImageId id = StorageImageId::INVALID;
     };
 
-    struct Shader {
-        std::string name = "shader";
-        VkShaderStageFlagBits stage = {};
-        VkShaderStageFlags nextStage = {};
-        VkShaderEXT shader = nullptr;
-        VkShaderCreateInfoEXT createInfo = {};
-        std::vector<u32> spirv = {};
-    };
-
     struct Vertex {
         glm::vec3 position;
         f32 uv_x;
@@ -155,15 +146,6 @@ namespace flux::renderer {
         StorageImage drawImage = {};
         StorageImage depthStencil = {};
 
-        // nk ui
-        struct {
-            struct nk_context {}; struct nk_colorf {}; struct nk_image {}; // TMP
-            struct nk_context* ctx  = nullptr;
-            struct nk_colorf bg = {};
-            struct nk_image img = {};
-            VkSemaphore semaphore = nullptr;
-        } nk = {};
-
         // immediate submit structures
         struct {
             VkFence fence = nullptr;
@@ -172,37 +154,5 @@ namespace flux::renderer {
         } immediate = {};
 
         DeinitStack deinitStack = {};
-
-        PFN_vkCreateShadersEXT vkCreateShadersEXT{ VK_NULL_HANDLE };
-        PFN_vkDestroyShaderEXT vkDestroyShaderEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdBindShadersEXT vkCmdBindShadersEXT{ VK_NULL_HANDLE };
-        PFN_vkGetShaderBinaryDataEXT vkGetShaderBinaryDataEXT{ VK_NULL_HANDLE };
-
-        // VK_EXT_shader_objects requires render passes to be dynamic
-        PFN_vkCmdBeginRenderingKHR vkCmdBeginRenderingKHR{ VK_NULL_HANDLE };
-        PFN_vkCmdEndRenderingKHR vkCmdEndRenderingKHR{ VK_NULL_HANDLE };
-
-        // With VK_EXT_shader_object pipeline state must be set at command buffer creation using these functions
-        PFN_vkCmdSetAlphaToCoverageEnableEXT vkCmdSetAlphaToCoverageEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetColorBlendEnableEXT vkCmdSetColorBlendEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetColorWriteMaskEXT vkCmdSetColorWriteMaskEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetCullModeEXT vkCmdSetCullModeEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetDepthBiasEnableEXT vkCmdSetDepthBiasEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetDepthCompareOpEXT vkCmdSetDepthCompareOpEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetDepthTestEnableEXT vkCmdSetDepthTestEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetDepthWriteEnableEXT vkCmdSetDepthWriteEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetFrontFaceEXT vkCmdSetFrontFaceEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetPolygonModeEXT vkCmdSetPolygonModeEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetPrimitiveRestartEnableEXT vkCmdSetPrimitiveRestartEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetPrimitiveTopologyEXT vkCmdSetPrimitiveTopologyEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetRasterizationSamplesEXT vkCmdSetRasterizationSamplesEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetRasterizerDiscardEnableEXT vkCmdSetRasterizerDiscardEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetSampleMaskEXT vkCmdSetSampleMaskEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetScissorWithCountEXT vkCmdSetScissorWithCountEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetStencilTestEnableEXT vkCmdSetStencilTestEnableEXT{ VK_NULL_HANDLE };
-        PFN_vkCmdSetViewportWithCountEXT vkCmdSetViewportWithCountEXT{ VK_NULL_HANDLE };
-
-        // VK_EXT_vertex_input_dynamic_state
-        PFN_vkCmdSetVertexInputEXT vkCmdSetVertexInputEXT{ VK_NULL_HANDLE };
     };
 }
