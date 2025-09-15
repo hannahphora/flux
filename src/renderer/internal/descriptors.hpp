@@ -1,13 +1,12 @@
 #pragma once
 #include "../renderer.hpp"
-#include "initializers.hpp"
+#include "vkstructs.hpp"
 
 namespace flux::renderer::descriptors {
 
     void init(RendererState* state) {
         static constexpr std::array<VkDescriptorType, 5> types = {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
@@ -70,31 +69,6 @@ namespace flux::renderer::descriptors {
         vkUpdateDescriptorSets(state->device, (u32)state->pendingWriteDescriptors.write.size(), state->pendingWriteDescriptors.write.data(), 0, nullptr);
         state->pendingWriteDescriptors.write.clear();
         state->pendingWriteDescriptors.info.clear();
-    }
-
-    StorageBufferId registerStorageBuffer(RendererState* state, VkBuffer buffer, VkDeviceSize size) {
-        StorageBufferId result;
-        if (!state->availableDescriptorId.storageBuffer.empty()) {
-            result = state->availableDescriptorId.storageBuffer.back();
-            state->availableDescriptorId.storageBuffer.pop_back();
-        }
-        else result = (StorageBufferId)state->nextAvailableDecriptorId.storageBuffer++;
-        state->pendingWriteDescriptors.write.push_back({
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = state->globalDescriptorSet,
-            .dstBinding = (u32)Binding::STORAGE_BUFFER,
-            .dstArrayElement = (u32)result,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        });
-        state->pendingWriteDescriptors.info.emplace_back();
-        state->pendingWriteDescriptors.info.back().buffer = {
-            .buffer = buffer,
-            .offset = 0,
-            .range = size,
-        };
-        state->pendingWriteDescriptors.write.back().pBufferInfo = &state->pendingWriteDescriptors.info.back().buffer;
-        return result;
     }
 
     CombinedSamplerId registerCombinedSampler(RendererState* state, VkImageView view, VkSampler sampler) {

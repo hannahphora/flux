@@ -6,3 +6,4 @@ zig-out/
 *.swp
 .clangd
 compile_commands.json
+imgui.ini

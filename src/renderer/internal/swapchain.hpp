@@ -1,8 +1,8 @@
 #pragma once
 #include "../renderer.hpp"
-#include "initializers.hpp"
+#include "vkstructs.hpp"
 #include "helpers.hpp"
-#include "resources.hpp"
+#include "images.hpp"
 
 namespace flux::renderer::swapchain {
 
@@ -44,13 +44,13 @@ namespace flux::renderer::swapchain {
 
         auto [w, h] = utility::getWindowSize(state->engine);
         create(state, w, h);
-        state->drawImage.image = resources::allocateImage(
+        state->drawImage.image = vkres::createImage(
             state->allocator,
             {w, h},
             VK_FORMAT_R16G16B16A16_SFLOAT,
-            resources::STORAGE_IMAGE_USES
+            vkres::STORAGE_IMAGE_USES
         );
-        state->drawImage.view = resources::createImageView(state, state->drawImage.image);
+        state->drawImage.view = vkres::createImageView(state, state->drawImage.image);
         state->drawImage.id = descriptors::registerStorageImage(state, state->drawImage.view);
 
         // TODO: update draw img descriptor here

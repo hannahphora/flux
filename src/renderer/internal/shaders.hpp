@@ -1,12 +1,11 @@
 #pragma once
 #include "../renderer.hpp"
-#include "initializers.hpp"
+#include "vkstructs.hpp"
 #include "helpers.hpp"
-#include "resources.hpp"
 
-namespace flux::renderer::shaders {
+namespace flux::renderer::vkutil {
 
-    bool loadModule(const char* filePath, VkDevice device, VkShaderModule* outShaderModule) {
+    bool loadShaderModule(const char* filePath, VkDevice device, VkShaderModule* outShaderModule) {
         std::ifstream file(filePath, std::ios::ate | std::ios::binary);
         if (!file.is_open()) return false;
         usize fileSize = (usize)file.tellg();

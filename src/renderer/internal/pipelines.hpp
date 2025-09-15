@@ -1,16 +1,16 @@
 #pragma once
 #include "../renderer.hpp"
-#include "initializers.hpp"
+#include "vkstructs.hpp"
 #include "helpers.hpp"
-#include "resources.hpp"
+#include "images.hpp"
 
 namespace flux::renderer::pipelines {
 
-    void initLayout(RendererState* state) {
+    void initLayout(RendererState* state, const u32 pushConstantSize = 128) {
         VkPushConstantRange pushConstantRange = {
             .stageFlags = VK_SHADER_STAGE_ALL,
             .offset = 0U,
-            .size = 128U,
+            .size = pushConstantSize,
         };
         VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -102,8 +102,8 @@ namespace flux::renderer::pipelines {
 
         void setShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader) {
             shaderStages.clear();
-            shaderStages.emplace_back(initializers::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
-            shaderStages.emplace_back(initializers::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
+            shaderStages.emplace_back(vkstruct::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertexShader));
+            shaderStages.emplace_back(vkstruct::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
         }
 
         void setInputTopology(VkPrimitiveTopology topology) {

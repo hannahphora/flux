@@ -24,6 +24,8 @@
 #include <random>
 #include <fstream>
 #include <filesystem>
+#include <span>
+#include <unordered_map>
 
 //---------------------------------------------------
 // |>~ BASE TYPES ~<|

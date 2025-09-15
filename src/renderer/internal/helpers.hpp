@@ -1,14 +1,14 @@
 #pragma once
 #include "../renderer.hpp"
-#include "initializers.hpp"
+#include "vkstructs.hpp"
 
 namespace flux::renderer {
 
-    inline void vkCheck(VkResult result) {
-        if (result) {
-            log::unbuffered(std::format("Vulkan error: {}", string_VkResult(result)), log::level::ERROR);
-            utility::exitWithFailure();
-        }
+    #define VK_CHECK(result) {\
+        if (result != VK_SUCCESS) {\
+            log::unbuffered(std::format("Vulkan error: {} at {}:{}", string_VkResult(result), __FILE__, __LINE__), log::level::ERROR);\
+            utility::exitWithFailure();\
+        }\
     }
 
     inline FrameData& getCurrentFrame(RendererState* state) {
@@ -20,19 +20,19 @@ namespace flux::renderer {
 namespace flux::renderer::vkutil {
 
     void immediateSubmit(RendererState* state, std::function<void(VkCommandBuffer cmd)>&& fn) {
-        vkCheck(vkResetFences(state->device, 1, &state->immediate.fence));
-        vkCheck(vkResetCommandBuffer(state->immediate.cmdBuffer, 0));
+        VK_CHECK(vkResetFences(state->device, 1, &state->immediateSubmit.fence));
+        VK_CHECK(vkResetCommandBuffer(state->immediateSubmit.cmdBuffer, 0));
 
-        VkCommandBuffer cmd = state->immediate.cmdBuffer;
-        auto cmdBeginInfo = initializers::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-        vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+        VkCommandBuffer cmd = state->immediateSubmit.cmdBuffer;
+        auto cmdBeginInfo = vkstruct::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
         fn(cmd);
-        vkCheck(vkEndCommandBuffer(cmd));
+        VK_CHECK(vkEndCommandBuffer(cmd));
 
         // NOTE: render fence will now block until graphics cmds finish execution
-        auto cmdInfo = initializers::cmdBufferSubmitInfo(cmd);
-        auto submit = initializers::submitInfo(&cmdInfo, nullptr, nullptr);
-        vkCheck(vkQueueSubmit2(state->queue.graphics, 1, &submit, state->immediate.fence));
-        vkCheck(vkWaitForFences(state->device, 1, &state->immediate.fence, true, 9999999999));
+        auto cmdInfo = vkstruct::cmdBufferSubmitInfo(cmd);
+        auto submit = vkstruct::submitInfo(&cmdInfo, nullptr, nullptr);
+        VK_CHECK(vkQueueSubmit2(state->queue.graphics, 1, &submit, state->immediateSubmit.fence));
+        VK_CHECK(vkWaitForFences(state->device, 1, &state->immediateSubmit.fence, true, 9999999999));
     }
 }

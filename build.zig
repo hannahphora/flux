@@ -1,5 +1,5 @@
 const std = @import("std");
-//const zcc = @import("compile_commands");
+const zcc = @import("compile_commands");
 
 const additional_flags: []const []const u8 = &.{
     "-std=c++20",
@@ -10,7 +10,11 @@ const additional_flags: []const []const u8 = &.{
 const debug_flags = warning_flags ++ additional_flags;
 
 pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
+    var enabled_features = std.Target.Cpu.Feature.Set.empty;
+    enabled_features.addFeature(@intFromEnum(std.Target.x86.Feature.evex512));
+    enabled_features.addFeature(@intFromEnum(std.Target.x86.Feature.crc32));
+
+    const target = b.resolveTargetQuery(.{ .cpu_features_add = enabled_features });
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
@@ -24,10 +28,12 @@ pub fn build(b: *std.Build) !void {
 
     // add engine srcs
     exe.addCSourceFiles(.{ .files = &.{
-        "src/engine/engine.cpp",
+        "src/core/main.cpp",
+        "src/core/engine.cpp",
         "src/renderer/renderer.cpp",
         "src/input/input.cpp",
     }, .flags = debug_flags });
+    try addCSourceFilesInDir(b, exe, "src/subsystems", debug_flags);
 
     // get VULKAN_SDK paths
     var env_map = try std.process.getEnvMap(b.allocator);
@@ -38,6 +44,8 @@ pub fn build(b: *std.Build) !void {
     try addCSourceFilesInDir(b, exe, "deps/src/imgui", &.{});
     try addCSourceFilesInDir(b, exe, "deps/src/meshoptimizer", &.{});
     try addCSourceFilesInDir(b, exe, "deps/src/vkb", &.{});
+    try addCSourceFilesInDir(b, exe, "deps/src/fastgltf", &.{});
+    try addCSourceFilesInDir(b, exe, "deps/src/simdjson", &.{});
 
     // dep linking
     exe.addLibraryPath(.{ .cwd_relative = try std.fmt.allocPrint(b.allocator, "{s}/lib", .{path}) });
@@ -58,6 +66,8 @@ pub fn build(b: *std.Build) !void {
     exe.addIncludePath(b.path("deps/include/meshoptimizer"));
     exe.addIncludePath(b.path("deps/include/imgui"));
     exe.addIncludePath(b.path("deps/include/imgui/backends"));
+    exe.addIncludePath(b.path("deps/include/fastgltf"));
+    exe.addIncludePath(b.path("deps/include/simdjson"));
 
     try compileShaders(b, "res/shaders");
     b.installArtifact(exe);
@@ -72,7 +82,7 @@ pub fn build(b: *std.Build) !void {
     var targets = std.ArrayList(*std.Build.Step.Compile){};
     defer targets.deinit(b.allocator);
     try targets.append(b.allocator, exe);
-    //_ = zcc.createStep(b, "cmds", try targets.toOwnedSlice());
+    _ = zcc.createStep(b, "ccdb", try targets.toOwnedSlice(b.allocator));
 }
 
 fn compileShaders(b: *std.Build, baseDirPath: []const u8) !void {

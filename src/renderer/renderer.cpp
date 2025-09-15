@@ -1,16 +1,17 @@
 #define VMA_IMPLEMENTATION
 #include "renderer.hpp"
 
-#include <engine/engine.hpp>
+#include <core/engine.hpp>
 
-#include "internal/images.hpp"
 #include "internal/helpers.hpp"
+#include "internal/vkstructs.hpp"
+#include "internal/images.hpp"
+#include "internal/buffers.hpp"
 #include "internal/descriptors.hpp"
 #include "internal/swapchain.hpp"
-#include "internal/resources.hpp"
-#include "internal/ui.hpp"
 #include "internal/pipelines.hpp"
 #include "internal/shaders.hpp"
+#include "internal/ui.hpp"
 
 using namespace renderer;
 
@@ -42,7 +43,7 @@ bool renderer::init(RendererState* state) {
     });
 
     // create surface
-    vkCheck(glfwCreateWindowSurface(state->instance, state->engine->window, nullptr, &state->surface));
+    VK_CHECK(glfwCreateWindowSurface(state->instance, state->engine->window, nullptr, &state->surface));
 
     // query physical device and create device
     auto physDevSelector = vkb::PhysicalDeviceSelector{ vkbInstance };
@@ -121,32 +122,32 @@ bool renderer::init(RendererState* state) {
     });
 
     // init cmds
-    auto cmdPoolInfo = initializers::cmdPoolCreateInfo(state->queueFamily.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    auto cmdPoolInfo = vkstruct::cmdPoolCreateInfo(state->queueFamily.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 	for (usize i = 0; i < config::renderer::FRAME_OVERLAP; i++) {
-		vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->frames[i].cmdPool));
-		auto cmdAllocInfo = initializers::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
-		vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->frames[i].primaryCmdBuffer));
+		VK_CHECK(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->frames[i].cmdPool));
+		auto cmdAllocInfo = vkstruct::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
+		VK_CHECK(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->frames[i].primaryCmdBuffer));
 	}
     // immediate cmd
-    vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->immediate.cmdPool));
-	auto cmdAllocInfo = initializers::cmdBufferAllocInfo(state->immediate.cmdPool, 1);
-	vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->immediate.cmdBuffer));
+    VK_CHECK(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->immediateSubmit.cmdPool));
+	auto cmdAllocInfo = vkstruct::cmdBufferAllocInfo(state->immediateSubmit.cmdPool, 1);
+	VK_CHECK(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->immediateSubmit.cmdBuffer));
 	state->deinitStack.emplace_back([state] { 
-	    vkDestroyCommandPool(state->device, state->immediate.cmdPool, nullptr);
+	    vkDestroyCommandPool(state->device, state->immediateSubmit.cmdPool, nullptr);
 	});
 
     // init sync structures
-    auto fenceCreateInfo = initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-    auto semCreateInfo = initializers::semaphoreCreateInfo();
+    auto fenceCreateInfo = vkstruct::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+    auto semCreateInfo = vkstruct::semaphoreCreateInfo();
     for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
-        vkCheck(vkCreateFence(state->device, &fenceCreateInfo, nullptr, &state->frames[i].renderFence));
-        vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].swapchainSemaphore));
-        vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].renderSemaphore));
+        VK_CHECK(vkCreateFence(state->device, &fenceCreateInfo, nullptr, &state->frames[i].renderFence));
+        VK_CHECK(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].swapchainSemaphore));
+        VK_CHECK(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].renderSemaphore));
     }
     // immediate fence
-    vkCheck(vkCreateFence(state->device, &fenceCreateInfo, nullptr, &state->immediate.fence));
+    VK_CHECK(vkCreateFence(state->device, &fenceCreateInfo, nullptr, &state->immediateSubmit.fence));
 	state->deinitStack.emplace_back([state] {
-        vkDestroyFence(state->device, state->immediate.fence, nullptr);
+        vkDestroyFence(state->device, state->immediateSubmit.fence, nullptr);
     });
 
     // deinit all per frame data
@@ -164,37 +165,37 @@ bool renderer::init(RendererState* state) {
     
     // create draw image
     //auto [ maxW, maxH ] = utility::getMonitorRes(state->engine);
-    state->drawImage.image = resources::allocateImage(
+    state->drawImage.image = vkres::createImage(
         state->allocator,
         { w, h, 1 },
         VK_FORMAT_R16G16B16A16_SFLOAT,
-        resources::STORAGE_IMAGE_USES
+        vkres::STORAGE_IMAGE_USES
     );
-    state->drawImage.view = resources::createImageView(state, state->drawImage.image);
+    state->drawImage.view = vkres::createImageView(state, state->drawImage.image);
     state->drawImage.id = descriptors::registerStorageImage(state, state->drawImage.view);
 	state->deinitStack.emplace_back([state] {
 		vkDestroyImageView(state->device, state->drawImage.view, nullptr);
-        resources::deallocateImage(state->allocator, state->drawImage.image);
+        vkres::destroyImage(state->allocator, state->drawImage.image);
 	});
 
     // create pipeline
-    VkShaderModule triangleFragShader;
-	if (!shaders::loadModule("zig-out/bin/res/shaders/coloredTriangle.frag.spv", state->device, &triangleFragShader))
+    VkShaderModule fragShader = {};
+	if (!vkutil::loadShaderModule("zig-out/bin/res/shaders/coloredTriangle.frag.spv", state->device, &fragShader))
         log::warn("error building triangle fragment shader module");
 	else
         log::debug("triangle fragment shader succesfully loaded");
     
-	VkShaderModule triangleVertexShader;
-	if (!shaders::loadModule("zig-out/bin/res/shaders/coloredTriangle.vert.spv", state->device, &triangleVertexShader))
+	VkShaderModule vertShader = {};
+	if (!vkutil::loadShaderModule("zig-out/bin/res/shaders/coloredTriangle.vert.spv", state->device, &vertShader))
         log::warn("error building triangle vertex shader module");
 	else
         log::debug("triangle vertex shader succesfully loaded");
 	
-    pipelines::initLayout(state);
+    pipelines::initLayout(state, sizeof(GPUDrawPushConstants));
 
     pipelines::PipelineBuilder pipelineBuilder;
 	pipelineBuilder.pipelineLayout = state->globalPipelineLayout;               // use global pipeline layout
-	pipelineBuilder.setShaders(triangleVertexShader, triangleFragShader);       // connect vert and frag shaders
+	pipelineBuilder.setShaders(vertShader, fragShader);                         // connect vert and frag shaders
 	pipelineBuilder.setInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);      // draw triangles
 	pipelineBuilder.setPolygonMode(VK_POLYGON_MODE_FILL);                       // filled triangles
 	pipelineBuilder.setCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);    // no backface culling
@@ -203,12 +204,12 @@ bool renderer::init(RendererState* state) {
 	pipelineBuilder.disableDepthtest();                                         // no depth testing
 	pipelineBuilder.setColorAttachmentFormat(state->drawImage.image.format);    // connect draw img format
 	pipelineBuilder.setDepthFormat(VK_FORMAT_UNDEFINED);                        // currently no depth img
-	state->trianglePipeline = pipelineBuilder.build(state->device);             // build pipeline
+	state->pipeline = pipelineBuilder.build(state->device);             // build pipeline
 
 	// cleanup
-	vkDestroyShaderModule(state->device, triangleFragShader, nullptr);
-	vkDestroyShaderModule(state->device, triangleVertexShader, nullptr);
-	state->deinitStack.emplace_back([state] { vkDestroyPipeline(state->device, state->trianglePipeline, nullptr); });
+	vkDestroyShaderModule(state->device, fragShader, nullptr);
+	vkDestroyShaderModule(state->device, vertShader, nullptr);
+	state->deinitStack.emplace_back([state] { vkDestroyPipeline(state->device, state->pipeline, nullptr); });
 
     ui::init(state);
 
@@ -224,12 +225,12 @@ void renderer::deinit(RendererState* state) {
 
 void drawGeometry(RendererState* state, VkCommandBuffer cmd) {
     // begin a render pass with draw image
-	auto colorAttachment = initializers::attachmentInfo(state->drawImage.view, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	auto colorAttachment = vkstruct::attachmentInfo(state->drawImage.view, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-	auto renderInfo = initializers::renderingInfo(state->drawExtent, &colorAttachment, nullptr, nullptr);
+	auto renderInfo = vkstruct::renderingInfo(state->drawExtent, &colorAttachment, nullptr, nullptr);
 	vkCmdBeginRendering(cmd, &renderInfo);
 
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, state->trianglePipeline);
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, state->pipeline);
 
 	// set dynamic viewport
 	VkViewport viewport = {
@@ -262,36 +263,42 @@ void buildCommandBuffer(RendererState* state, VkCommandBuffer cmd, u32 swapchain
 	//vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, state->globalPipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
 	//vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->globalPipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
 
-    auto cmdBeginInfo = initializers::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    auto cmdBeginInfo = vkstruct::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     state->drawExtent.width = state->drawImage.image.extent.width;
     state->drawExtent.height = state->drawImage.image.extent.height;
 
-    vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
     {
-        vkutil::transitionImage(cmd, state->drawImage.image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        vkutil::transitionImage(cmd, state->drawImage.image.image,
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-        vkutil::transitionImage(cmd, state->drawImage.image.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vkutil::transitionImage(cmd, state->drawImage.image.image,
+            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         drawGeometry(state, cmd);
 
         // transtion the draw image and the swapchain image into their correct transfer layouts
-        vkutil::transitionImage(cmd, state->drawImage.image.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkutil::transitionImage(cmd, state->drawImage.image.image,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex],
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         // execute a copy from the draw image into the swapchain
 	    vkutil::copyImageToImage(cmd, state->drawImage.image.image, state->swapchainImages[swapchainImageIndex], state->drawExtent, state->swapchainExtent);
 
         // set swapchain image layout to Attachment Optimal so we can draw it
-        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-        //draw imgui into the swapchain image
+        // draw imgui into the swapchain image
         ui::draw(state, cmd, state->swapchainImageViews[swapchainImageIndex]);
 
         // set swapchain image layout to Present so we can draw it
-        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex],
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
-	vkCheck(vkEndCommandBuffer(cmd));
+	VK_CHECK(vkEndCommandBuffer(cmd));
 }
 
 void renderer::draw(RendererState* state) {
@@ -299,14 +306,14 @@ void renderer::draw(RendererState* state) {
     ui::startFrame(state);
 
     // wait on gpu to finish rendering last frame
-    vkCheck(vkWaitForFences(state->device, 1, &getCurrentFrame(state).renderFence, true, 1000000000 /*max 1 second timeout*/));
-    vkCheck(vkResetFences(state->device, 1, &getCurrentFrame(state).renderFence));
+    VK_CHECK(vkWaitForFences(state->device, 1, &getCurrentFrame(state).renderFence, true, 1000000000 /*max 1 second timeout*/));
+    VK_CHECK(vkResetFences(state->device, 1, &getCurrentFrame(state).renderFence));
 
     utility::flushDeinitStack(&getCurrentFrame(state).deinitStack);
 
     // request image from swapchain
     u32 swapchainImageIndex;
-    vkCheck(vkAcquireNextImageKHR(
+    VK_CHECK(vkAcquireNextImageKHR(
         state->device, state->swapchain,
         1000000000 /*max 1 second timeout*/,
         getCurrentFrame(state).swapchainSemaphore,
@@ -314,16 +321,16 @@ void renderer::draw(RendererState* state) {
     ));
 
     auto cmd = getCurrentFrame(state).primaryCmdBuffer;
-    vkCheck(vkResetCommandBuffer(cmd, 0));
+    VK_CHECK(vkResetCommandBuffer(cmd, 0));
 
     buildCommandBuffer(state, cmd, swapchainImageIndex);
     
     // submit cmd buffer to queue to execute
-    auto cmdInfo = initializers::cmdBufferSubmitInfo(cmd);	
-	auto waitInfo = initializers::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, getCurrentFrame(state).swapchainSemaphore);
-	auto signalInfo = initializers::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, getCurrentFrame(state).renderSemaphore);
-	auto submitInfo = initializers::submitInfo(&cmdInfo, &signalInfo, &waitInfo);
-	vkCheck(vkQueueSubmit2(state->queue.graphics, 1, &submitInfo, getCurrentFrame(state).renderFence));
+    auto cmdInfo = vkstruct::cmdBufferSubmitInfo(cmd);	
+	auto waitInfo = vkstruct::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, getCurrentFrame(state).swapchainSemaphore);
+	auto signalInfo = vkstruct::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, getCurrentFrame(state).renderSemaphore);
+	auto submitInfo = vkstruct::submitInfo(&cmdInfo, &signalInfo, &waitInfo);
+	VK_CHECK(vkQueueSubmit2(state->queue.graphics, 1, &submitInfo, getCurrentFrame(state).renderFence));
 
     // prepare and present
 	VkPresentInfoKHR presentInfo = {
@@ -334,7 +341,7 @@ void renderer::draw(RendererState* state) {
         .pSwapchains = &state->swapchain,
         .pImageIndices = &swapchainImageIndex,
     };
-	vkCheck(vkQueuePresentKHR(state->queue.graphics, &presentInfo));
+	VK_CHECK(vkQueuePresentKHR(state->queue.graphics, &presentInfo));
 
 	state->frameNumber++;
 }

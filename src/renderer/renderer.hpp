@@ -1,9 +1,9 @@
 #pragma once
 #include <common.hpp>
 #include <config.hpp>
-#include <engine/math.hpp>
-#include <engine/utility.hpp>
-#include <engine/log.hpp>
+#include <subsystems/math.hpp>
+#include <subsystems/utility.hpp>
+#include <subsystems/log.hpp>
 
 // silence clang for external includes
 #pragma clang diagnostic push
@@ -35,23 +35,16 @@ namespace flux::renderer {
         DeinitStack deinitStack = {};
     };
 
-    struct ComputePushConstant {
-        u32 textureID;
-    };
-
-    static constexpr u32 INVALID_DESCRIPTOR_ID_VALUE = std::numeric_limits<u32>::max();
-    enum class UniformBufferId : u32            { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
-    enum class StorageBufferId : u32            { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
-    enum class CombinedSamplerId : u32          { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
-    enum class StorageImageId : u32             { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
-    enum class AccelerationStructureId : u32    { INVALID = INVALID_DESCRIPTOR_ID_VALUE };
+    enum class UniformBufferId : u32            { INVALID = 16 };
+    enum class CombinedSamplerId : u32          { INVALID = std::numeric_limits<u16>::max() };
+    enum class StorageImageId : u32             { INVALID = std::numeric_limits<u16>::max() };
+    enum class AccelerationStructureId : u32    { INVALID = std::numeric_limits<u16>::max() };
 
     enum class Binding : u8 {
         UNIFORM_BUFFER          = 0,
-        STORAGE_BUFFER          = 1,
-        COMBINED_SAMPLER        = 2,
-        STORAGE_IMAGE           = 3,
-        ACCELERATION_STRUCTURE  = 4,
+        COMBINED_SAMPLER        = 1,
+        STORAGE_IMAGE           = 2,
+        ACCELERATION_STRUCTURE  = 3,
     };
 
     struct AllocatedBuffer {
@@ -89,6 +82,30 @@ namespace flux::renderer {
         glm::vec4 color;
     };
 
+    // holds the resources needed for a mesh
+    struct GPUMeshBuffers {
+        AllocatedBuffer indexBuffer;
+        AllocatedBuffer vertexBuffer;
+        VkDeviceAddress vertexBufferAddress;
+    };
+
+    // push constants for mesh object draws
+    struct GPUDrawPushConstants {
+        glm::mat4 worldMatrix;
+        VkDeviceAddress vertexBuffer;
+    };
+
+    struct GeoSurface {
+        u32 startIndex;
+        u32 count;
+    };
+
+    struct MeshAsset {
+        std::string name;
+        std::vector<GeoSurface> surfaces;
+        GPUMeshBuffers meshBuffers;
+    };
+
     struct RendererState {
         const EngineState* engine;
         bool initialised = false;
@@ -112,10 +129,10 @@ namespace flux::renderer {
         VkExtent2D swapchainExtent = {};
         VkExtent2D drawExtent = {};
 
-        VkPipelineLayout globalPipelineLayout = nullptr;
         VkDescriptorSet globalDescriptorSet = {};
         VkDescriptorSetLayout globalDescriptorSetLayout = {};
         VkDescriptorPool globalDescriptorPool = nullptr;
+        VkDescriptorPool imguiDescriptorPool = nullptr;
 
         struct {
             u32 uniformBuffer = 0;
@@ -128,7 +145,6 @@ namespace flux::renderer {
         // lists of deleted/newly available descriptor ids
         struct {
             std::vector<UniformBufferId> uniformBuffer = {};
-            std::vector<StorageBufferId> storageBuffer = {};
             std::vector<CombinedSamplerId> combinedSampler = {};
             std::vector<StorageImageId> storageImage = {};
             std::vector<AccelerationStructureId> accelerationStructure = {};
@@ -146,14 +162,14 @@ namespace flux::renderer {
         StorageImage drawImage = {};
         StorageImage depthStencil = {};
 
-        VkPipeline trianglePipeline;
+        VkPipelineLayout globalPipelineLayout = nullptr;
+        VkPipeline pipeline;
 
-        // immediate submit structures
         struct {
             VkFence fence = nullptr;
             VkCommandPool cmdPool = nullptr;
             VkCommandBuffer cmdBuffer = nullptr;
-        } immediate = {};
+        } immediateSubmit = {};
 
         DeinitStack deinitStack = {};
     };
