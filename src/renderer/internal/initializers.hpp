@@ -1,7 +1,7 @@
 #pragma once
 #include "../renderer.hpp"
 
-namespace flux::renderer::vkinit {
+namespace flux::renderer::initializers {
     
     inline VkCommandPoolCreateInfo cmdPoolCreateInfo(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags = 0) {
         return {
@@ -110,6 +110,16 @@ namespace flux::renderer::vkinit {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        };
+    }
+
+    inline VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo(VkShaderStageFlagBits stage,
+        VkShaderModule shaderModule, const char* entry = "main") {
+        return {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = stage,
+            .module = shaderModule,
+            .pName = entry,
         };
     }
 }

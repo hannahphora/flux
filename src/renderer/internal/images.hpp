@@ -16,7 +16,7 @@ namespace flux::renderer::vkutil {
             .newLayout = newLayout,
         };
 
-        imageBarrier.subresourceRange = vkinit::imageSubresourceRange(
+        imageBarrier.subresourceRange = initializers::imageSubresourceRange(
             (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
                 ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
         imageBarrier.image = image;
@@ -79,7 +79,7 @@ namespace flux::renderer::vkutil {
 			VkPipelineStageFlags dstStageMask,
 			VkImageSubresourceRange subresourceRange)
     {
-        auto imageMemoryBarrier = vkinit::imageMemoryBarrier();
+        auto imageMemoryBarrier = initializers::imageMemoryBarrier();
         imageMemoryBarrier.srcAccessMask = srcAccessMask;
         imageMemoryBarrier.dstAccessMask = dstAccessMask;
         imageMemoryBarrier.oldLayout = oldImageLayout;

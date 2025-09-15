@@ -1,11 +1,8 @@
 #pragma once
-#include "utility.hpp"
+#include "../utility.hpp"
 
-// silence clang for external includes
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-    #include <GLFW/glfw3.h>
-#pragma clang diagnostic pop
+#include "../engine.hpp"
+#include "../log.hpp"
 
 void utility::flushDeinitStack(DeinitStack* deinitStack) {
     while (!deinitStack->empty()) {
@@ -25,6 +22,21 @@ std::pair<u32, u32> utility::getMonitorRes(const EngineState* state) {
     return { (u32)mode->width, (u32)mode->height };
 }
 
-void utility::sleepFor(const u32 ms) {
+void utility::sleepMs(const u32 ms) {
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
+
+void utility::abort() {
+    log::flush();
+    std::abort();
+}
+
+void utility::exitWithFailure() {
+    log::flush();
+    std::exit(EXIT_FAILURE);
+}
+
+void utility::exitWithSuccess() {
+    log::flush();
+    std::exit(EXIT_SUCCESS);
 }

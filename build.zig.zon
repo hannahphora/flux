@@ -1,18 +1,12 @@
 .{
     .name = .flux,
-    .version = "0.0.0",
+    .version = "0.1.0",
     .fingerprint = 0x7252313a82903e28,
-    .minimum_zig_version = "0.14.1",
+    .minimum_zig_version = "0.15.1",
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
     },
-
-    .dependencies = .{
-        .compile_commands = .{
-            .url = "https://github.com/the-argus/zig-compile-commands/archive/11cc2917816875aae4890e0a899f810e33570d70.tar.gz",
-            .hash = "N-V-__8AAFLOAACuuPPvb9E05PlcLiPoxsMOTRiP4K1hSaoB",
-        },
-    },
+    .dependencies = .{},
 }

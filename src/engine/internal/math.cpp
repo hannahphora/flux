@@ -1,5 +1,5 @@
 #pragma once
-#include "math.hpp"
+#include "../math.hpp"
 
 namespace flux::math {
     static std::random_device randomDevice;
@@ -14,7 +14,8 @@ f32 math::rndF32(const f32 min, const f32 max) {
     return std::uniform_real_distribution{ min, max }(gen);
 }
 
-u32 math::rndU32(const u32 min, const u32 max) {
+template <typename T>
+T math::rndInt(T min, T max) {
     std::mt19937 gen(randomDevice());
-    return std::uniform_int_distribution<u32>{ min, max }(gen);
+    return std::uniform_int_distribution<T>{ min, max }(gen);
 }

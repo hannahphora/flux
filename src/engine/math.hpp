@@ -12,5 +12,7 @@
 namespace flux::math {
     bool cmpF32(f32 a, f32 b, f32 threshold  = 0.0001f);
     f32 rndF32(f32 min = 0.0f, f32 max = 1.0f);
-    u32 rndU32(u32 min, u32 max);
+
+    template <typename T>
+    T rndInt(T min = std::numeric_limits<T>::min(), T max = std::numeric_limits<T>::max());
 }

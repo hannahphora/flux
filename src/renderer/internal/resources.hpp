@@ -4,7 +4,7 @@
 #include "helpers.hpp"
 #include "images.hpp"
 
-namespace flux::renderer::res {
+namespace flux::renderer::resources {
 
     static constexpr VkImageUsageFlags STORAGE_IMAGE_USES =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |

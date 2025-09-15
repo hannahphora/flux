@@ -12,6 +12,6 @@ namespace flux::config {
     namespace log {
         static FILE* OUTPUT_FILE = stderr;
         static constexpr usize BUFFER_SIZE = 8 * 1024 * 1024; // 8mb
-        static constexpr usize BUFFER_FLUSH_CAP = usize(BUFFER_SIZE * .75f);
+        static constexpr usize BUFFER_FLUSH_CAPACITY = usize(BUFFER_SIZE * .75f);
     }
 }

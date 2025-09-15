@@ -1,9 +1,9 @@
 #pragma once
 #include <common.hpp>
 #include <config.hpp>
-#include <engine/subsystems/math.hpp>
-#include <engine/subsystems/utility.hpp>
-#include <engine/subsystems/log.hpp>
+#include <engine/math.hpp>
+#include <engine/utility.hpp>
+#include <engine/log.hpp>
 
 // silence clang for external includes
 #pragma clang diagnostic push
@@ -145,6 +145,8 @@ namespace flux::renderer {
 
         StorageImage drawImage = {};
         StorageImage depthStencil = {};
+
+        VkPipeline trianglePipeline;
 
         // immediate submit structures
         struct {

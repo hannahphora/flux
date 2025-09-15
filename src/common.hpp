@@ -1,9 +1,17 @@
 #pragma once
 
+//---------------------------------------------------
+// |>~ C STD LIB ~<|
+//---------------------------------------------------
+
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <cstdarg>
+
+//---------------------------------------------------
+// |>~ C++ STD LIB ~<|
+//---------------------------------------------------
 
 #include <atomic>
 #include <array>
@@ -17,7 +25,11 @@
 #include <fstream>
 #include <filesystem>
 
-using usize = unsigned long long;
+//---------------------------------------------------
+// |>~ BASE TYPES ~<|
+//---------------------------------------------------
+
+using usize = size_t;
 
 using i8 = signed char;
 using i16 = signed short;
@@ -32,33 +44,29 @@ using u64 = unsigned long long;
 using f32 = float;
 using f64 = double;
 
+//---------------------------------------------------
+// |>~ OTHER TYPES ~<|
+//---------------------------------------------------
+
+using DeinitStack = std::vector<std::function<void()>>;
+
+//---------------------------------------------------
+// |>~ FLUX NAMESPACE / SYSTEMS ~<|
+//---------------------------------------------------
+
 namespace flux {
     enum class Systems {
         ENGINE,
         RENDERER,
         INPUT,
-        AUDIO,
-        PHYSICS,
-        NETWORKING,
-        AI,
     };
 
     namespace engine { struct EngineState; }
     namespace renderer { struct RendererState; }
     namespace input { struct InputState; }
-    namespace audio { struct AudioState; }
-    namespace physics { struct PhysicsState; }
-    namespace networking { struct NetworkingState; }
-    namespace ai { struct AiState; }
 }
 
 using namespace flux;
 using flux::engine::EngineState;
 using flux::renderer::RendererState;
 using flux::input::InputState;
-using flux::audio::AudioState;
-using flux::physics::PhysicsState;
-using flux::networking::NetworkingState;
-using flux::ai::AiState;
-
-using DeinitStack = std::vector<std::function<void()>>;

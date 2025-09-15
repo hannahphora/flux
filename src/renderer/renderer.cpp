@@ -8,8 +8,9 @@
 #include "internal/descriptors.hpp"
 #include "internal/swapchain.hpp"
 #include "internal/resources.hpp"
-
-#include "subsystems/ui_impl.hpp"
+#include "internal/ui.hpp"
+#include "internal/pipelines.hpp"
+#include "internal/shaders.hpp"
 
 using namespace renderer;
 
@@ -68,7 +69,6 @@ bool renderer::init(RendererState* state) {
         })
         .add_required_extensions({
             "VK_EXT_mesh_shader",
-            "VK_EXT_shader_object",
             "VK_KHR_acceleration_structure",
             "VK_KHR_deferred_host_operations",
         })
@@ -121,23 +121,23 @@ bool renderer::init(RendererState* state) {
     });
 
     // init cmds
-    auto cmdPoolInfo = vkinit::cmdPoolCreateInfo(state->queueFamily.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    auto cmdPoolInfo = initializers::cmdPoolCreateInfo(state->queueFamily.graphics, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 	for (usize i = 0; i < config::renderer::FRAME_OVERLAP; i++) {
 		vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->frames[i].cmdPool));
-		auto cmdAllocInfo = vkinit::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
+		auto cmdAllocInfo = initializers::cmdBufferAllocInfo(state->frames[i].cmdPool, 1);
 		vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->frames[i].primaryCmdBuffer));
 	}
     // immediate cmd
     vkCheck(vkCreateCommandPool(state->device, &cmdPoolInfo, nullptr, &state->immediate.cmdPool));
-	auto cmdAllocInfo = vkinit::cmdBufferAllocInfo(state->immediate.cmdPool, 1);
+	auto cmdAllocInfo = initializers::cmdBufferAllocInfo(state->immediate.cmdPool, 1);
 	vkCheck(vkAllocateCommandBuffers(state->device, &cmdAllocInfo, &state->immediate.cmdBuffer));
 	state->deinitStack.emplace_back([state] { 
 	    vkDestroyCommandPool(state->device, state->immediate.cmdPool, nullptr);
 	});
 
     // init sync structures
-    auto fenceCreateInfo = vkinit::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-    auto semCreateInfo = vkinit::semaphoreCreateInfo();
+    auto fenceCreateInfo = initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+    auto semCreateInfo = initializers::semaphoreCreateInfo();
     for (usize i = 0;  i < config::renderer::FRAME_OVERLAP; i++) {
         vkCheck(vkCreateFence(state->device, &fenceCreateInfo, nullptr, &state->frames[i].renderFence));
         vkCheck(vkCreateSemaphore(state->device, &semCreateInfo, nullptr, &state->frames[i].swapchainSemaphore));
@@ -161,39 +161,56 @@ bool renderer::init(RendererState* state) {
     });
 
     descriptors::init(state);
-    vkutil::initPipelineLayout(state);
-
+    
     // create draw image
     //auto [ maxW, maxH ] = utility::getMonitorRes(state->engine);
-    state->drawImage.image = res::allocateImage(
+    state->drawImage.image = resources::allocateImage(
         state->allocator,
-        { w, h },
+        { w, h, 1 },
         VK_FORMAT_R16G16B16A16_SFLOAT,
-        res::STORAGE_IMAGE_USES
+        resources::STORAGE_IMAGE_USES
     );
-    state->drawImage.view = res::createImageView(state, state->drawImage.image);
+    state->drawImage.view = resources::createImageView(state, state->drawImage.image);
     state->drawImage.id = descriptors::registerStorageImage(state, state->drawImage.view);
 	state->deinitStack.emplace_back([state] {
 		vkDestroyImageView(state->device, state->drawImage.view, nullptr);
-        res::deallocateImage(state->allocator, state->drawImage.image);
+        resources::deallocateImage(state->allocator, state->drawImage.image);
 	});
 
-    // create depth stencil
-    //auto [ maxW, maxH ] = utility::getMonitorRes(state->engine);
-    state->depthStencil.image = res::allocateImage(
-        state->allocator,
-        { w, h },
-        VK_FORMAT_R16G16B16A16_SFLOAT,
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
-    );
-    state->depthStencil.view = res::createImageView(state, state->depthStencil.image);
-    state->depthStencil.id = descriptors::registerStorageImage(state, state->depthStencil.view);
-	state->deinitStack.emplace_back([state] {
-		vkDestroyImageView(state->device, state->depthStencil.view, nullptr);
-        res::deallocateImage(state->allocator, state->depthStencil.image);
-	});
+    // create pipeline
+    VkShaderModule triangleFragShader;
+	if (!shaders::loadModule("zig-out/bin/res/shaders/coloredTriangle.frag.spv", state->device, &triangleFragShader))
+        log::warn("error building triangle fragment shader module");
+	else
+        log::debug("triangle fragment shader succesfully loaded");
+    
+	VkShaderModule triangleVertexShader;
+	if (!shaders::loadModule("zig-out/bin/res/shaders/coloredTriangle.vert.spv", state->device, &triangleVertexShader))
+        log::warn("error building triangle vertex shader module");
+	else
+        log::debug("triangle vertex shader succesfully loaded");
+	
+    pipelines::initLayout(state);
 
-    //ui::init(state);
+    pipelines::PipelineBuilder pipelineBuilder;
+	pipelineBuilder.pipelineLayout = state->globalPipelineLayout;               // use global pipeline layout
+	pipelineBuilder.setShaders(triangleVertexShader, triangleFragShader);       // connect vert and frag shaders
+	pipelineBuilder.setInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);      // draw triangles
+	pipelineBuilder.setPolygonMode(VK_POLYGON_MODE_FILL);                       // filled triangles
+	pipelineBuilder.setCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);    // no backface culling
+	pipelineBuilder.setMultisamplingNone();                                     // no multisampling
+	pipelineBuilder.disableBlending();                                          // no blending
+	pipelineBuilder.disableDepthtest();                                         // no depth testing
+	pipelineBuilder.setColorAttachmentFormat(state->drawImage.image.format);    // connect draw img format
+	pipelineBuilder.setDepthFormat(VK_FORMAT_UNDEFINED);                        // currently no depth img
+	state->trianglePipeline = pipelineBuilder.build(state->device);             // build pipeline
+
+	// cleanup
+	vkDestroyShaderModule(state->device, triangleFragShader, nullptr);
+	vkDestroyShaderModule(state->device, triangleVertexShader, nullptr);
+	state->deinitStack.emplace_back([state] { vkDestroyPipeline(state->device, state->trianglePipeline, nullptr); });
+
+    ui::init(state);
 
     state->initialised = true;
     return true;
@@ -205,105 +222,81 @@ void renderer::deinit(RendererState* state) {
     state->initialised = false;
 }
 
+void drawGeometry(RendererState* state, VkCommandBuffer cmd) {
+    // begin a render pass with draw image
+	auto colorAttachment = initializers::attachmentInfo(state->drawImage.view, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+	auto renderInfo = initializers::renderingInfo(state->drawExtent, &colorAttachment, nullptr, nullptr);
+	vkCmdBeginRendering(cmd, &renderInfo);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, state->trianglePipeline);
+
+	// set dynamic viewport
+	VkViewport viewport = {
+        .x = 0.f,
+        .y = 0.f,
+        .width = (f32)state->drawExtent.width,
+        .height = (f32)state->drawExtent.height,
+        .minDepth = 0.f,
+        .maxDepth = 1.f,
+    };
+	vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    // set scissor
+	VkRect2D scissor = {
+        .offset = { .x = 0, .y = 0 },
+        .extent = {
+            .width = state->drawExtent.width,
+            .height = state->drawExtent.height
+        },
+    };
+	vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+	// launch a draw command to draw 3 vertices
+	vkCmdDraw(cmd, 3, 1, 0, 0);
+	vkCmdEndRendering(cmd);
+}
+
 void buildCommandBuffer(RendererState* state, VkCommandBuffer cmd, u32 swapchainImageIndex) {
 
 	//vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, state->globalPipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
 	//vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, state->globalPipelineLayout, 0, 1, &state->globalDescriptorSet, 0, nullptr);
 
-    auto cmdBeginInfo = vkinit::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    auto cmdBeginInfo = initializers::cmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     state->drawExtent.width = state->drawImage.image.extent.width;
     state->drawExtent.height = state->drawImage.image.extent.height;
 
     vkCheck(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
     {
-        // transition color and depth images for drawing
-        vkutil::insertImageMemoryBarrier(
-            cmd, state->swapchainImages[swapchainImageIndex], 0,
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            VkImageSubresourceRange{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 }
-        );
-        vkutil::insertImageMemoryBarrier(
-            cmd, state->depthStencil.image.image, 0,
-            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            VkImageSubresourceRange{ VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, 0, 1, 0, 1 }
-        );
+        vkutil::transitionImage(cmd, state->drawImage.image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-        VkClearValue clearColor;
-        clearColor.color = { {0.0f, 0.0f, 0.0f, 0.0f} };
-        auto colorInfo = vkinit::attachmentInfo(state->swapchainImageViews[swapchainImageIndex], &clearColor);
-        
-        auto depthStencilInfo = vkinit::attachmentInfo(state->swapchainImageViews[swapchainImageIndex], nullptr, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-        depthStencilInfo.clearValue.depthStencil = { 1.0f,  0 };
+        vkutil::transitionImage(cmd, state->drawImage.image.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-        auto [w, h] = utility::getWindowSize(state->engine);
-        auto renderingInfo = vkinit::renderingInfo({w, h}, &colorInfo, &depthStencilInfo, &depthStencilInfo);
+        drawGeometry(state, cmd);
 
-        state->vkCmdBeginRenderingKHR(cmd, &renderingInfo);
+        // transtion the draw image and the swapchain image into their correct transfer layouts
+        vkutil::transitionImage(cmd, state->drawImage.image.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        VkViewport viewport = { .width = (f32)w, .height = (f32)h, .minDepth = 0.f, .maxDepth = 1.f };
-        VkRect2D scissor = { .offset = { 0, 0 }, .extent = {w, h} };
+        // execute a copy from the draw image into the swapchain
+	    vkutil::copyImageToImage(cmd, state->drawImage.image.image, state->swapchainImages[swapchainImageIndex], state->drawExtent, state->swapchainExtent);
 
-        state->vkCmdSetViewportWithCountEXT(cmd, 1, &viewport);
-        state->vkCmdSetScissorWithCountEXT(cmd, 1, &scissor);
-        state->vkCmdSetCullModeEXT(cmd, VK_CULL_MODE_BACK_BIT);
-        state->vkCmdSetFrontFaceEXT(cmd, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-        state->vkCmdSetDepthTestEnableEXT(cmd, VK_TRUE);
-        state->vkCmdSetDepthWriteEnableEXT(cmd, VK_TRUE);
-        state->vkCmdSetDepthCompareOpEXT(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
-        state->vkCmdSetPrimitiveTopologyEXT(cmd, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-        state->vkCmdSetRasterizerDiscardEnableEXT(cmd, VK_FALSE);
-        state->vkCmdSetPolygonModeEXT(cmd, VK_POLYGON_MODE_FILL);
-        state->vkCmdSetRasterizationSamplesEXT(cmd, VK_SAMPLE_COUNT_1_BIT);
-        state->vkCmdSetAlphaToCoverageEnableEXT(cmd, VK_FALSE);
-        state->vkCmdSetDepthBiasEnableEXT(cmd, VK_FALSE);
-        state->vkCmdSetStencilTestEnableEXT(cmd, VK_FALSE);
-        state->vkCmdSetPrimitiveRestartEnableEXT(cmd, VK_FALSE);
+        // set swapchain image layout to Attachment Optimal so we can draw it
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-        const uint32_t sampleMask = 0xFF;
-        state->vkCmdSetSampleMaskEXT(cmd, VK_SAMPLE_COUNT_1_BIT, &sampleMask);
+        //draw imgui into the swapchain image
+        ui::draw(state, cmd, state->swapchainImageViews[swapchainImageIndex]);
 
-        const VkBool32 colorBlendEnables = false;
-        const VkColorComponentFlags colorBlendComponentFlags = 0xf;
-        //const VkColorBlendEquationEXT colorBlendEquation{};
-        state->vkCmdSetColorBlendEnableEXT(cmd, 0, 1, &colorBlendEnables);
-        state->vkCmdSetColorWriteMaskEXT(cmd, 0, 1, &colorBlendComponentFlags);
-
-        VkVertexInputBindingDescription2EXT vertexInputBinding{};
-        vertexInputBinding.sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_BINDING_DESCRIPTION_2_EXT;
-        vertexInputBinding.binding = 0;
-        vertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        vertexInputBinding.stride = sizeof(Vertex);
-        vertexInputBinding.divisor = 1;
-
-        std::vector<VkVertexInputAttributeDescription2EXT> vertexAttributes = {
-            { VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT, nullptr, 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position) },
-            { VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT, nullptr, 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal) },
-            { VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT, nullptr, 2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color) }
-        };
-
-        state->vkCmdSetVertexInputEXT(cmd, 1, &vertexInputBinding, 3, vertexAttributes.data());
-
-
-
-
-
-        state->vkCmdEndRenderingKHR(cmd);
+        // set swapchain image layout to Present so we can draw it
+        vkutil::transitionImage(cmd, state->swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 	vkCheck(vkEndCommandBuffer(cmd));
 }
 
 void renderer::draw(RendererState* state) {
     descriptors::updatePending(state);
-    //ui::startFrame(state);
+    ui::startFrame(state);
 
     // wait on gpu to finish rendering last frame
     vkCheck(vkWaitForFences(state->device, 1, &getCurrentFrame(state).renderFence, true, 1000000000 /*max 1 second timeout*/));
@@ -326,10 +319,10 @@ void renderer::draw(RendererState* state) {
     buildCommandBuffer(state, cmd, swapchainImageIndex);
     
     // submit cmd buffer to queue to execute
-    auto cmdInfo = vkinit::cmdBufferSubmitInfo(cmd);	
-	auto waitInfo = vkinit::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, getCurrentFrame(state).swapchainSemaphore);
-	auto signalInfo = vkinit::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, getCurrentFrame(state).renderSemaphore);
-	auto submitInfo = vkinit::submitInfo(&cmdInfo, &signalInfo, &waitInfo);
+    auto cmdInfo = initializers::cmdBufferSubmitInfo(cmd);	
+	auto waitInfo = initializers::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, getCurrentFrame(state).swapchainSemaphore);
+	auto signalInfo = initializers::semaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, getCurrentFrame(state).renderSemaphore);
+	auto submitInfo = initializers::submitInfo(&cmdInfo, &signalInfo, &waitInfo);
 	vkCheck(vkQueueSubmit2(state->queue.graphics, 1, &submitInfo, getCurrentFrame(state).renderFence));
 
     // prepare and present

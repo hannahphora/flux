@@ -1,6 +1,4 @@
 const std = @import("std");
-
-// NOTE: zcc currently broken with zig 0.15.1
 //const zcc = @import("compile_commands");
 
 const additional_flags: []const []const u8 = &.{
@@ -29,8 +27,6 @@ pub fn build(b: *std.Build) !void {
         "src/engine/engine.cpp",
         "src/renderer/renderer.cpp",
         "src/input/input.cpp",
-        "src/audio/audio.cpp",
-        "src/physics/physics.cpp",
     }, .flags = debug_flags });
 
     // get VULKAN_SDK paths
@@ -71,6 +67,12 @@ pub fn build(b: *std.Build) !void {
     run.step.dependOn(b.getInstallStep());
     if (b.args) |args| run.addArgs(args);
     b.step("run", "Run the engine").dependOn(&run.step);
+
+    // generate compile_commands.json
+    var targets = std.ArrayList(*std.Build.Step.Compile){};
+    defer targets.deinit(b.allocator);
+    try targets.append(b.allocator, exe);
+    //_ = zcc.createStep(b, "cmds", try targets.toOwnedSlice());
 }
 
 fn compileShaders(b: *std.Build, baseDirPath: []const u8) !void {

@@ -4,26 +4,24 @@
 #include <renderer/renderer.hpp>
 #include <input/input.hpp>
 
-#include "subsystems/log_impl.hpp"
-#include "subsystems/ecs_impl.hpp"
-#include "subsystems/utility_impl.hpp"
-#include "subsystems/math_impl.hpp"
-#include "subsystems/allocators_impl.hpp"
+#include "internal/log.cpp"
+#include "internal/ecs.cpp"
+#include "internal/utility.cpp"
+#include "internal/math.cpp"
+#include "internal/allocators.cpp"
 
 i32 main() {
     auto state = new EngineState;
+
     engine::init(state);
-
-    state->running = true;
-    while (state->running)
-        engine::update(state);
-
+    engine::run(state);
     engine::deinit(state);
+
     delete state;
     return EXIT_SUCCESS;
 }
 
-static void glfw_error_callback(i32 error, const char* description) {
+static void glfwErrorCallback(i32 error, const char* description) {
     log::unbuffered(std::format("GLFW Error {}: {}", error, description), log::level::ERROR);
 }
 
@@ -31,9 +29,11 @@ void engine::init(EngineState* state) {
 
     // init glfw
     log::debug("initialising glfw");
-    glfwSetErrorCallback(glfw_error_callback);
-    if (!glfwInit())
+    glfwSetErrorCallback(glfwErrorCallback);
+    if (!glfwInit()) {
         log::error("failed to init glfw");
+        utility::exitWithFailure();
+    }
     state->deinitStack.emplace_back([] {
         log::debug("deinitialising glfw");
         glfwTerminate();
@@ -43,8 +43,10 @@ void engine::init(EngineState* state) {
     log::debug("creating window");
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    if (!(state->window = glfwCreateWindow(config::WINDOW_WIDTH, config::WINDOW_HEIGHT, config::APP_NAME.c_str(), nullptr, nullptr)))
+    if (!(state->window = glfwCreateWindow(config::WINDOW_WIDTH, config::WINDOW_HEIGHT, config::APP_NAME.c_str(), nullptr, nullptr))) {
         log::error("failed to create window");
+        utility::exitWithFailure();
+    }
     state->deinitStack.emplace_back([state] {
         log::debug("destroying window");
         glfwDestroyWindow(state->window);
@@ -52,8 +54,10 @@ void engine::init(EngineState* state) {
 
     // init renderer
     log::debug("initialising renderer");
-    if (!renderer::init(state->renderer = new RendererState { .engine = state }))
+    if (!renderer::init(state->renderer = new RendererState { .engine = state })) {
         log::error("failed to init renderer");
+        utility::exitWithFailure();
+    }
     state->deinitStack.emplace_back([state] {
         log::debug("deinitialising renderer");
         renderer::deinit(state->renderer);
@@ -62,8 +66,10 @@ void engine::init(EngineState* state) {
 
     // init input
     log::debug("initialising input");
-    if (!input::init(state->input = new InputState { .engine = state }))
+    if (!input::init(state->input = new InputState { .engine = state })) {
         log::error("failed to init input");
+        utility::exitWithFailure();
+    }
     state->deinitStack.emplace_back([state] {
         log::debug("deinitialising input");
         input::deinit(state->input);
@@ -79,12 +85,16 @@ void engine::deinit(EngineState* state) {
     state->initialised = false;
 }
 
-void engine::update(EngineState* state) {
-    glfwPollEvents();
+void engine::run(EngineState* state) {
+    if (!state->initialised) {
+        log::error("failed to run, engine not initialised");
+        utility::exitWithFailure();
+    }
 
-    input::update(state->input);
-    renderer::draw(state->renderer);
-
-    if (glfwWindowShouldClose(state->window))
-        state->running = false;
+    while (!glfwWindowShouldClose(state->window)) {
+        glfwPollEvents();
+    
+        input::update(state->input);
+        renderer::draw(state->renderer);
+    }
 }
